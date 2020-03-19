@@ -17,16 +17,18 @@ import android.widget.TextView;
 
 import com.ash.randomzy.R;
 import com.ash.randomzy.asynctask.MessageAyncTask;
+import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
 import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.entity.ActiveChat;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetMessagesForUserEvent;
 import com.ash.randomzy.event.MessageReceiveEvent;
-import com.ash.randomzy.event.MessageSentEvent;
-import com.ash.randomzy.event.MessageUpdateEvent;
-import com.ash.randomzy.model.MessageUpdate;
+import com.ash.randomzy.event.MessageStatusUpdateEvent;
+import com.ash.randomzy.event.UnreadMessagesByUserEvent;
+import com.ash.randomzy.model.MessageStatusUpdate;
 import com.ash.randomzy.utility.TimestampUtil;
+import com.ash.randomzy.utility.UserUtil;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.gson.Gson;
@@ -40,8 +42,9 @@ import java.util.UUID;
 
 public class ChatActivity extends AppCompatActivity {
 
-    FirebaseAuth mAuth;
-    ActiveChat activeChat;
+    private FirebaseAuth mAuth;
+    private ActiveChat activeChat;
+    private boolean initialMessageLoaded;
 
     private ScrollView scrollView;
     private ImageView sendButton;
@@ -58,13 +61,39 @@ public class ChatActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
+        initialMessageLoaded = false;
         mAuth = FirebaseAuth.getInstance();
         activeChat = new Gson().fromJson(getIntent().getStringExtra("activeChat"), ActiveChat.class);
         initViews();
         addListeners();
-        initChatBubbleUtils();
         populateMessageList();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
         registerToEvents();
+        UserUtil.setChatOpenedFor(activeChat.getId());
+        if(initialMessageLoaded)
+            new MessageAyncTask(getApplicationContext(),MessageAyncTask.GET_UNREAD_MESSAGES_BY_USER, activeChat.getId()).execute();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        unRegisterToEvents();
+        UserUtil.setChatOpenedFor("");
+    }
+
+    @Override
+    protected void onPause() {
+        Log.d("randomzy_debug","Paused");
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 
     private void initViews() {
@@ -85,17 +114,17 @@ public class ChatActivity extends AppCompatActivity {
         });
     }
 
-    private void initChatBubbleUtils() {
-
-    }
-
-
     private void populateMessageList() {
         new MessageAyncTask(this, MessageAyncTask.GET_MESSAGES_FOR_USER_TASK, activeChat.getId()).execute();
     }
 
     private void registerToEvents() {
-        EventBus.getDefault().register(ChatActivity.this);
+        EventBus.getDefault().register(this);
+        Log.d(TAG, "Registered EventBus");
+    }
+
+    private void unRegisterToEvents() {
+        EventBus.getDefault().unregister(this);
         Log.d(TAG, "Registered EventBus");
     }
 
@@ -107,9 +136,16 @@ public class ChatActivity extends AppCompatActivity {
         resetBottomArea();
     }
 
-    private void addMessageToList(Message message){
+    private void addMessageToList(Message message) {
+        if(message.getMessageStatus() != MessageStatus.READ && !message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+            MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
+            messageStatusUpdate.setUserId(message.getSentBy());
+            messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
+            messageStatusUpdate.setMessageId(message.getMessageId());
+            messageStatusUpdate.setMessageStatus(MessageStatus.READ);
+            new OutgoingMessageStatusUpdateTask(this).execute(messageStatusUpdate);
+        }
         LinearLayout chatBubble = getChatBubble(message);
-        Log.d(TAG, "chat bubble added");
         messageListLayout.addView(chatBubble);
     }
 
@@ -117,34 +153,45 @@ public class ChatActivity extends AppCompatActivity {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onMessageReceiveEvent(MessageReceiveEvent event) {
-        Log.d(TAG, "Received a new message");
-        addMessageToList(event.getMessage());
-        messageList.add(event.getMessage());
+        if (event.getMessage().getSentBy().equals(activeChat.getId())) {
+            Log.d(TAG, "Received a new message");
+            addMessageToList(event.getMessage());
+            messageList.add(event.getMessage());
+        }
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMessageUpdate(MessageUpdateEvent event) {
-        Log.d(TAG, "Message Updated");
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onMessageSentEvent(MessageSentEvent event) {
-        Log.d(TAG, "Message Sent");
-        for (int i = messageListLayout.getChildCount() - 1; i >= 0; i--) {
-            LinearLayout l = (LinearLayout) messageListLayout.getChildAt(i);
-            if (((TextView) l.findViewById(R.id.messageId)).getText().toString().equals(event.getMessageId())) {
-                ((ImageView) l.findViewById(R.id.messageStatusImageView)).setImageResource(R.drawable.ic_done_white_14dp);
-                break;
+    public void onMessageUpdate(MessageStatusUpdateEvent event) {
+        if (event.getMessageStatusUpdate().getUserId().equals(activeChat.getId())) {
+            MessageStatusUpdate messageStatusUpdate = event.getMessageStatusUpdate();
+            for (int i = messageListLayout.getChildCount() - 1; i >= 0; i--) {
+                Log.d(TAG, "Loop Run " + i);
+                LinearLayout l = (LinearLayout) messageListLayout.getChildAt(i);
+                if (((TextView) l.findViewById(R.id.messageId)).getText().toString().equals(messageStatusUpdate.getMessageId())) {
+                    ImageView imageView = l.findViewById(R.id.messageStatusImageView);
+                    setMessageStatusToImageView(imageView, messageStatusUpdate.getMessageStatus());
+                    break;
+                }
             }
         }
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onGetAllMessagesForUserEvent(GetMessagesForUserEvent event){
-        Log.d(TAG,"Received Messages");
+    public void onGetAllMessagesForUserEvent(GetMessagesForUserEvent event) {
+        Log.d(TAG, "Received Messages");
         this.messageList = event.getMessageList();
-        for (int i = messageList.size() - 1; i >= 0 ; i--) {
+        for (int i = messageList.size() - 1; i >= 0; i--) {
             addMessageToList(messageList.get(i));
+        }
+        initialMessageLoaded = true;
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onUnreadMessagesByUserEvent(UnreadMessagesByUserEvent event){
+        Log.d(TAG, "Received Unread Messages");
+        for (int i = event.getMessageList().size() - 1; i >= 0; i--) {
+            addMessageToList(event.getMessageList().get(i));
+            this.messageList.add(event.getMessageList().get(i));
         }
     }
 
@@ -165,25 +212,18 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     private LinearLayout getChatBubble(Message message) {
-        if(mAuth.getCurrentUser().getUid().equals(message.getSentBy())){
-            Log.d(TAG, "should be right");
-        }else
-            Log.d(TAG, "should be left");
-
         chatBubbleLayoutParams = new LinearLayout
                 .LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         layoutInflater = LayoutInflater.from(ChatActivity.this);
-
         LinearLayout chatBubble = null;
-        if(message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+        if (message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
             chatBubble = (LinearLayout) layoutInflater.inflate(R.layout.chat_bubble_right, null, false);
             ImageView messageStatusImageView = chatBubble.findViewById(R.id.messageStatusImageView);
-            setMessageStatusToImageView(messageStatusImageView, message);
+            setMessageStatusToImageView(messageStatusImageView, message.getMessageStatus());
             chatBubbleLayoutParams.gravity = Gravity.RIGHT;
             chatBubbleLayoutParams.setMargins(100, 0, 0, 20);
             chatBubble.setBackgroundResource(R.drawable.roundleft);
-        }
-        else {
+        } else {
             chatBubble = (LinearLayout) layoutInflater.inflate(R.layout.chat_bubble_left, null, false);
             chatBubbleLayoutParams.gravity = Gravity.LEFT;
             chatBubbleLayoutParams.setMargins(0, 0, 100, 20);
@@ -201,13 +241,17 @@ public class ChatActivity extends AppCompatActivity {
         return chatBubble;
     }
 
-    private void setMessageStatusToImageView(ImageView messageStatusImageView, Message message){
-        switch (message.getMessageStatus()){
+    private void setMessageStatusToImageView(ImageView messageStatusImageView, int messageStatus) {
+        switch (messageStatus) {
             case MessageStatus.SENT:
                 messageStatusImageView.setImageResource(R.drawable.ic_done_white_14dp);
                 break;
-            case MessageStatus.READ:
+            case MessageStatus.DELIVERED:
                 messageStatusImageView.setImageResource(R.drawable.ic_done_all_white_14dp);
+                break;
+            case MessageStatus.READ:
+                messageStatusImageView.setImageResource(R.drawable.ic_done_all_blue_24dp);
+                break;
         }
     }
 

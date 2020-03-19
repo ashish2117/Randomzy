@@ -2,17 +2,19 @@ package com.ash.randomzy.entity;
 
 import com.google.gson.Gson;
 
+import java.io.Serializable;
+
 import androidx.annotation.NonNull;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 @Entity
-public class Message {
+public class Message implements Serializable {
 
     @PrimaryKey
     @NonNull
-    public String messageId;
+    private String messageId;
 
     @ColumnInfo(name = "sentBy")
     private String sentBy;

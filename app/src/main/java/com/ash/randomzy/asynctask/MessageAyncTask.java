@@ -8,7 +8,9 @@ import android.widget.Toast;
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetMessagesForUserEvent;
-import com.ash.randomzy.event.MessageSentEvent;
+import com.ash.randomzy.event.MessageStatusUpdateEvent;
+import com.ash.randomzy.event.UnreadMessagesByUserEvent;
+import com.ash.randomzy.model.MessageStatusUpdate;
 import com.ash.randomzy.repository.MessageRepository;
 import com.ash.randomzy.utility.UserUtil;
 import com.google.firebase.auth.FirebaseAuth;
@@ -23,7 +25,8 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
 
     public static final int MESSAGE_SEND_TASK = 0;
     public static final int GET_MESSAGES_FOR_USER_TASK = 1;
-    public static final int UPDATE_DB_MESSAGE_SENT_TASK = 2;
+    public static final int INSERT_DB_DELETE_REMOTE_TASK = 2;
+    public static final int GET_UNREAD_MESSAGES_BY_USER = 3;
 
     private static final String TAG = "randomzy_debug";
 
@@ -40,7 +43,7 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
         this.messageRepository = new MessageRepository(context);
     }
 
-    public MessageAyncTask(Context context, int messageTaskType, String userId){
+    public MessageAyncTask(Context context, int messageTaskType, String userId) {
         this.context = context;
         this.messageTaskType = messageTaskType;
         this.mAuth = FirebaseAuth.getInstance();
@@ -50,33 +53,58 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
 
     @Override
     protected Void doInBackground(Message... messages) {
-        switch (this.messageTaskType){
-            case MESSAGE_SEND_TASK :
+        switch (this.messageTaskType) {
+            case MESSAGE_SEND_TASK:
                 sendMessage(messages[0]);
                 break;
-            case  GET_MESSAGES_FOR_USER_TASK :
+            case GET_MESSAGES_FOR_USER_TASK:
                 getMessagesForUser(userId, 40);
                 break;
-            case UPDATE_DB_MESSAGE_SENT_TASK:
-                updateDbMessageSent(messages[0]);
+            case INSERT_DB_DELETE_REMOTE_TASK:
+                insertDbDeleteRemoteTask(messages[0]);
+            case GET_UNREAD_MESSAGES_BY_USER:
+                getUnreadMessagesSentByUser(userId);
         }
         return null;
     }
 
-    private void updateDbMessageSent(Message message){
-        int rows = messageRepository.updateMessageStatus(message.getMessageId(), MessageStatus.SENT);
-        Log.d(TAG, "Updated " + rows + " messages");
+    private void getUnreadMessagesSentByUser(String userId) {
+        List<Message> list = messageRepository.getUnreadMessagesSentByUser(userId);
+        EventBus.getDefault().post(new UnreadMessagesByUserEvent(list));
+    }
+
+    private void insertMessageTodb(Message message) {
+        messageRepository.insertMessage(message);
+    }
+
+    private void insertDbDeleteRemoteTask(Message message) {
+        message.setMessageStatus(MessageStatus.READ);
+        insertMessageTodb(message);
+        deleteMessage(message);
+        if (!UserUtil.hasUser(message.getSentBy())) {
+            addNewActiveChat(message);
+        }
+    }
+
+    private void deleteMessage(Message message) {
+        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference("messages")
+                .child(message.getSentTo());
+        messageReference.child(message.getMessageId()).removeValue();
+    }
+
+    private void addNewActiveChat(Message message) {
+        new ActiveChatAsyncTask(context, ActiveChatAsyncTask.ADD_NEW_INCOMING_ACTIVE_CHAT, message).execute();
     }
 
     private void getMessagesForUser(String userId, int numberOfMessages) {
-        Log.d(TAG,"Getting messages for user " + userId);
+        Log.d(TAG, "Getting messages for user " + userId);
         List<Message> allMessages = messageRepository.getMessagesForUser(userId, numberOfMessages);
         EventBus.getDefault().post(new GetMessagesForUserEvent(allMessages));
-        Log.d(TAG,allMessages.size() + " Messages Found");
+        Log.d(TAG, allMessages.size() + " Messages Found");
     }
 
     private void sendMessage(Message message) {
-        Log.d(TAG, "Message Sender sending a message" + message.getMessageId());
+        Log.d(TAG, "Message Sender sending a message " + message.getMessageId());
         messageRepository.insertMessage(message);
         checkActiveChatAvail(message);
         DatabaseReference reference = FirebaseDatabase.getInstance().getReference("messages");
@@ -86,18 +114,23 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
                 .addOnFailureListener((failure) -> {
                     Toast.makeText(context, failure.getMessage(), Toast.LENGTH_SHORT).show();
                 }).addOnCompleteListener((task -> {
-            if (task.isSuccessful())
-                EventBus.getDefault().post(new MessageSentEvent(message.getMessageId()));
-                new MessageAyncTask(context, UPDATE_DB_MESSAGE_SENT_TASK).execute(message);
+            if (task.isSuccessful()) {
+                MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
+                messageStatusUpdate.setUserId(message.getSentTo());
+                messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
+                messageStatusUpdate.setMessageId(message.getMessageId());
+                messageStatusUpdate.setMessageStatus(MessageStatus.SENT);
+                EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate));
+                new OutgoingMessageStatusUpdateTask(context)
+                        .execute(messageStatusUpdate);
+            }
         }));
     }
 
-    private void checkActiveChatAvail(Message message){
-        if(!UserUtil.hasUser(message.getSentTo())){
-            Log.d(TAG, "User Not Avail " + message.getSentTo());
-            new ActiveChatAsyncTask(context, ActiveChatAsyncTask.ADD_NEW_OUTGOING_ACTIVE_CHAT,message).execute();
+    private void checkActiveChatAvail(Message message) {
+        if (!UserUtil.hasUser(message.getSentTo())) {
+            new ActiveChatAsyncTask(context, ActiveChatAsyncTask.ADD_NEW_OUTGOING_ACTIVE_CHAT, message).execute();
             return;
         }
-        Log.d(TAG, "User Avail");
     }
 }

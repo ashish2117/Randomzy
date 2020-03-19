@@ -98,7 +98,8 @@ public class MainActivity extends AppCompatActivity {
                         ActiveChat activeChat = new ActiveChat();
                         activeChat.setLastTextTime(0l);
                         activeChat.setLastText("");
-                        activeChat.setId("QBtOqSDzANgbJaF45Fg1XsWfd5U2");
+                        activeChat.setId("QBtOqSDzANgbJaF45Fg1XsWfd5U2"); //for emu
+                        //activeChat.setId("cb2F9iUd1faR8Hsqr79gx0pgcXk1"); //for realme/
                         activeChat.setName("Ashish");
                         activeChat.setLastTextStatus(MessageStatus.SENDING);
                         activeChat.setSentBy(0);

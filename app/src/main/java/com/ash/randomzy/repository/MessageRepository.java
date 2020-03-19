@@ -2,6 +2,7 @@ package com.ash.randomzy.repository;
 
 import android.content.Context;
 
+import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.db.RandomzyDatabase;
 import com.ash.randomzy.entity.ActiveChat;
 import com.ash.randomzy.entity.Message;
@@ -50,5 +51,9 @@ public class MessageRepository {
 
     public int updateMessageText(String messageId, String message){
         return randomzyDatabase.messageDao().updateMessageText(messageId, message);
+    }
+
+    public List<Message> getUnreadMessagesSentByUser(String sentBy){
+        return randomzyDatabase.messageDao().getMessageSentByUserOfExcludingStatus(MessageStatus.READ, sentBy);
     }
 }

@@ -1,17 +1,10 @@
 package com.ash.randomzy.activity.ui.main;
 
 import android.content.Intent;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.provider.ContactsContract;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.NonNull;
@@ -29,11 +22,8 @@ import com.ash.randomzy.asynctask.ActiveChatAsyncTask;
 import com.ash.randomzy.entity.ActiveChat;
 import com.ash.randomzy.event.GetAllActiveChatEvent;
 import com.ash.randomzy.event.GetAllFavActiveChat;
-import com.ash.randomzy.event.MessageSentEvent;
 import com.ash.randomzy.event.NewActiveChatEvent;
 import com.ash.randomzy.listener.OnItemClickListener;
-import com.ash.randomzy.repository.ActiveChatRepository;
-import com.ash.randomzy.utility.ActivityLauncher;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;

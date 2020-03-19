@@ -39,4 +39,7 @@ public interface MessageDao {
 
     @Query("UPDATE Message SET message =:message WHERE messageId =:id")
     int updateMessageText(String id, String message);
+
+    @Query("SELECT * FROM message WHERE messageStatus !=:messageStatus AND sentBy =:sentBy ORDER BY timeStamp DESC")
+    List<Message> getMessageSentByUserOfExcludingStatus(int messageStatus, String sentBy);
 }

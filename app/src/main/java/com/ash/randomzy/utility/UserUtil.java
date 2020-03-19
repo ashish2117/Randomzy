@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.os.AsyncTask;
 import android.util.Log;
 
-import com.ash.randomzy.model.User;
 import com.ash.randomzy.repository.ActiveChatRepository;
 import com.ash.randomzy.service.MessageReceiverService;
 
@@ -14,6 +13,7 @@ import java.util.List;
 public class UserUtil {
 
     private static List<String> userIds;
+    private static String chatOpenedFor = "";
 
     private static final String TAG = "randomzy_debug";
 
@@ -41,6 +41,12 @@ public class UserUtil {
 
     public static void addUser(String id){
         userIds.add(id);
+    }
+
+    public static String getChatOpenedFor() { return chatOpenedFor; }
+
+    public static void setChatOpenedFor(String chatOpenedFor) {
+        UserUtil.chatOpenedFor = chatOpenedFor;
     }
 
     public static boolean userInitDone(){

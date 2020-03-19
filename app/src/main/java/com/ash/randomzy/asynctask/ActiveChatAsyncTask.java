@@ -34,6 +34,8 @@ public class ActiveChatAsyncTask extends AsyncTask<Void, Void, Void> {
     public static final int ADD_ACTIVE_CHAT = 1;
     public static final int GET_ALL_ACTIVE_CHAT = 2;
     public static final int GET_ALL_FAV_ACTIVE_CHAT = 3;
+    public static final int SEND_MESSAGE_UPDATE_READ = 5;
+
     private static final String TAG = "randomzy_debug";
 
     private int activeChatTaskType;
