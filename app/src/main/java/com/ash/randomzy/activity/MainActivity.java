@@ -1,25 +1,17 @@
 package com.ash.randomzy.activity;
 
-import android.content.Intent;
 import android.os.Bundle;
 
 import com.ash.randomzy.R;
-import com.ash.randomzy.constants.MessageStatus;
-import com.ash.randomzy.entity.ActiveChat;
-import com.ash.randomzy.model.User;
-import com.ash.randomzy.service.MessageReceiverService;
 import com.ash.randomzy.utility.ActivityLauncher;
 import com.ash.randomzy.utility.UserUtil;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 
 import androidx.annotation.NonNull;
 import androidx.viewpager.widget.ViewPager;
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.provider.ContactsContract;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -29,11 +21,6 @@ import android.widget.PopupMenu;
 
 import com.ash.randomzy.activity.ui.main.SectionsPagerAdapter;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -53,14 +40,10 @@ public class MainActivity extends AppCompatActivity {
         tabs.setupWithViewPager(viewPager);
         fab = findViewById(R.id.fab);
         mainMenu = findViewById(R.id.mainMenu);
-
         mAuth = FirebaseAuth.getInstance();
-
         if (!UserUtil.userInitDone())
             UserUtil.initUserIds(this);
-
         addListeners();
-
     }
 
     private void addListeners() {
@@ -87,38 +70,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void searchRandom() {
-        DatabaseReference databaseReference = FirebaseDatabase.getInstance()
-                .getReference("users");
 
-        databaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
-                for (DataSnapshot d: dataSnapshot.getChildren()){
-                    if(d.getKey().equals("cb2F9iUd1faR8Hsqr79gx0pgcXk1")){
-                        ActiveChat activeChat = new ActiveChat();
-                        activeChat.setLastTextTime(0l);
-                        activeChat.setLastText("");
-                        activeChat.setId("QBtOqSDzANgbJaF45Fg1XsWfd5U2"); //for emu
-                        //activeChat.setId("cb2F9iUd1faR8Hsqr79gx0pgcXk1"); //for realme/
-                        activeChat.setName("Ashish");
-                        activeChat.setLastTextStatus(MessageStatus.SENDING);
-                        activeChat.setSentBy(0);
-                        activeChat.setIsFav(0);
-                        activeChat.setProfilePicUrlServer("");
-                        activeChat.setProfilePicUrlLocal("");
-                        Intent intent = new Intent(MainActivity.this, ChatActivity.class);
-                        intent.putExtra("activeChat", activeChat.toString());
-                        startActivity(intent);
-                        return;
-                    }
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
-
-            }
-        });
     }
 
     @Override

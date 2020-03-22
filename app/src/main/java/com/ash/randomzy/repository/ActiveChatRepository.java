@@ -2,14 +2,10 @@ package com.ash.randomzy.repository;
 
 import android.content.Context;
 
-import com.ash.randomzy.dao.ActiveChatDao;
 import com.ash.randomzy.db.RandomzyDatabase;
-import com.ash.randomzy.entity.ActiveChat;
+import com.ash.randomzy.model.ActiveChat;
 
 import java.util.List;
-
-import androidx.lifecycle.LiveData;
-import androidx.room.Room;
 
 public class ActiveChatRepository {
 
@@ -18,11 +14,7 @@ public class ActiveChatRepository {
     private RandomzyDatabase randomzyDatabase;
 
     public ActiveChatRepository(Context context){
-        randomzyDatabase = Room.databaseBuilder(context, RandomzyDatabase.class,DBNAME).build();
-    }
-
-    public void insertActiveChat(ActiveChat activeChat){
-        randomzyDatabase.activeChatDao().insertActiveChat(activeChat);
+        randomzyDatabase = RandomzyDatabase.getInstance(context);
     }
 
     public int deleteActiveChat(String id){

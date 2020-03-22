@@ -1,6 +1,6 @@
 package com.ash.randomzy.event;
 
-import com.ash.randomzy.entity.ActiveChat;
+import com.ash.randomzy.model.ActiveChat;
 
 import java.util.List;
 

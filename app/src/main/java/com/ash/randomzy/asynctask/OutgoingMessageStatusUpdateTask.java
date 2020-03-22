@@ -11,6 +11,8 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
+import java.security.acl.LastOwnerException;
+
 public class OutgoingMessageStatusUpdateTask extends AsyncTask<MessageStatusUpdate, Void, Void> {
 
     private MessageRepository messageRepository;
@@ -23,6 +25,7 @@ public class OutgoingMessageStatusUpdateTask extends AsyncTask<MessageStatusUpda
 
     @Override
     protected Void doInBackground(MessageStatusUpdate... messageStatusUpdates){
+        Log.d("randomzy_debug","Updating status for " + messageStatusUpdates[0].getMessageId() + messageStatusUpdates[0].getMessageStatus());
         int messageStatus = messageStatusUpdates[0].getMessageStatus();
         if(!(messageStatus == MessageStatus.SENT))
             sendMessageStatus(messageStatusUpdates[0]);

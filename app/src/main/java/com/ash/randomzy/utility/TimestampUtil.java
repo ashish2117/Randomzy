@@ -14,4 +14,11 @@ public class TimestampUtil {
         return dateFormat.format(date);
     }
 
+    public static String getTimeIn12HourFormat(Long timpestamp){
+        Timestamp timestamp = new Timestamp(timpestamp);
+        Date date = new Date(timestamp.getTime());
+        SimpleDateFormat dateFormat = new SimpleDateFormat("hh:mm a");
+        return dateFormat.format(date);
+    }
+
 }

@@ -9,8 +9,11 @@ import android.widget.TextView;
 
 import com.ash.randomzy.R;
 import com.ash.randomzy.constants.SentBy;
-import com.ash.randomzy.entity.ActiveChat;
+import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.listener.OnItemClickListener;
+import com.ash.randomzy.utility.MessageStatusUtil;
+import com.ash.randomzy.utility.TimestampUtil;
+import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.List;
 
@@ -19,12 +22,14 @@ import androidx.recyclerview.widget.RecyclerView;
 
 public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.ActiveChatViewHolder> {
 
-    List<ActiveChat> activeChatList;
-    OnItemClickListener onItemClickListener;
+    private List<ActiveChat> activeChatList;
+    private OnItemClickListener onItemClickListener;
+    private FirebaseAuth mAuth;
 
     public ActiveChatAdapter(List<ActiveChat> activeChatList, OnItemClickListener onItemClickListener) {
         this.activeChatList = activeChatList;
         this.onItemClickListener = onItemClickListener;
+        mAuth = FirebaseAuth.getInstance();
     }
 
     @NonNull
@@ -39,13 +44,21 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
         ActiveChat activeChat = activeChatList.get(position);
         holder.nameTxtView.setText(activeChat.getName());
         holder.lastMessageTxtView.setText(activeChat.getLastText());
-        holder.lastMessageTimeTxtView.setText(activeChat.getLastTextTime()+"");
-        holder.unreadCountTxtView.setText(""+1);
-        if(activeChat.getSentBy() == SentBy.SENT_BY_ME)
-            holder.unreadCountTxtView.setVisibility(View.GONE);
-        else
-            holder.tickImageView.setVisibility(View.GONE);
-        holder.bind(activeChatList.get(position),onItemClickListener);
+        holder.lastMessageTimeTxtView.setText(TimestampUtil.getTimeIn12HourFormat(activeChat.getLastTextTime()));
+        holder.unreadCountTxtView.setText("" + activeChat.getUnreadCount());
+
+        MessageStatusUtil.setMessageStatusToImageView(holder.tickImageView, activeChat.getLastTextStatus());
+        holder.activeChat = activeChatList.get(position);
+        if (activeChat.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+            holder.unreadCountTxtView.setVisibility(View.INVISIBLE);
+            holder.tickImageView.setVisibility(View.VISIBLE);
+        } else {
+            holder.tickImageView.setVisibility(View.INVISIBLE);
+            holder.unreadCountTxtView.setVisibility(View.VISIBLE);
+        }
+        if (activeChat.getUnreadCount() == 0)
+            holder.unreadCountTxtView.setVisibility(View.INVISIBLE);
+        holder.bind(activeChatList.get(position), onItemClickListener);
     }
 
     @Override
@@ -58,14 +71,16 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
         return position;
     }
 
-    public void addNewActiveChat(ActiveChat activeChat){
+    public void addNewActiveChat(ActiveChat activeChat) {
         activeChatList.add(activeChat);
         notifyDataSetChanged();
     }
 
+    public List<ActiveChat> getActiveChatList() {
+        return activeChatList;
+    }
 
     class ActiveChatViewHolder extends RecyclerView.ViewHolder {
-
         TextView nameTxtView;
         TextView lastMessageTxtView;
         TextView lastMessageTimeTxtView;
@@ -94,9 +109,11 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
             });
         }
 
-        public void bind(ActiveChat activeChat, OnItemClickListener onItemClickListener){
+        public void bind(ActiveChat activeChat, OnItemClickListener onItemClickListener) {
             this.activeChat = activeChat;
             this.itemClickListener = onItemClickListener;
         }
+
     }
+
 }

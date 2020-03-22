@@ -2,6 +2,7 @@ package com.ash.randomzy.activity.ui.main;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,12 +19,18 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.ash.randomzy.R;
 import com.ash.randomzy.activity.ChatActivity;
 import com.ash.randomzy.adapter.ActiveChatAdapter;
-import com.ash.randomzy.asynctask.ActiveChatAsyncTask;
-import com.ash.randomzy.entity.ActiveChat;
+import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.SentBy;
+import com.ash.randomzy.model.ActiveChat;
+import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetAllActiveChatEvent;
 import com.ash.randomzy.event.GetAllFavActiveChat;
+import com.ash.randomzy.event.MessageOutGoingEvent;
+import com.ash.randomzy.event.MessageReceiveEvent;
+import com.ash.randomzy.event.MessageStatusUpdateEvent;
 import com.ash.randomzy.event.NewActiveChatEvent;
-import com.ash.randomzy.listener.OnItemClickListener;
+import com.ash.randomzy.model.MessageStatusUpdate;
+import com.google.firebase.auth.FirebaseAuth;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -43,6 +50,7 @@ public class PlaceholderFragment extends Fragment {
     private RecyclerView recyclerView;
     private ActiveChatAdapter adapter;
     private int index;
+    private FirebaseAuth mAuth;
 
     public static PlaceholderFragment newInstance(int index) {
         PlaceholderFragment fragment = new PlaceholderFragment();
@@ -53,7 +61,7 @@ public class PlaceholderFragment extends Fragment {
     }
 
     @Override
-    public void onStart(){
+    public void onStart() {
         super.onStart();
     }
 
@@ -64,8 +72,8 @@ public class PlaceholderFragment extends Fragment {
         if (getArguments() != null) {
             index = getArguments().getInt(ARG_SECTION_NUMBER);
         }
+        mAuth = FirebaseAuth.getInstance();
         pageViewModel.setIndex(index);
-        EventBus.getDefault().register(PlaceholderFragment.this);
     }
 
     @Override
@@ -77,26 +85,25 @@ public class PlaceholderFragment extends Fragment {
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.addItemDecoration(new DividerItemDecoration(getContext(), LinearLayoutManager.VERTICAL));
         int index = getArguments().getInt(ARG_SECTION_NUMBER);
-        if (index == 1)
-            new ActiveChatAsyncTask(getContext(), ActiveChatAsyncTask.GET_ALL_ACTIVE_CHAT).execute();
-        else if(index == 2)
-            new ActiveChatAsyncTask(getContext(), ActiveChatAsyncTask.GET_ALL_FAV_ACTIVE_CHAT).execute();
+        //if (index == 1)
+            //new ActiveChatAsyncTask(getContext(), ActiveChatAsyncTask.GET_ALL_ACTIVE_CHAT).execute();
+        //else if (index == 2)
+            //new ActiveChatAsyncTask(getContext(), ActiveChatAsyncTask.GET_ALL_FAV_ACTIVE_CHAT).execute();
         pageViewModel.getText().observe(this, new Observer<String>() {
             @Override
             public void onChanged(@Nullable String s) {
             }
+
         });
+        EventBus.getDefault().register(PlaceholderFragment.this);
         return root;
     }
 
     private void initAdapter(List<ActiveChat> activeChatList) {
-        adapter = new ActiveChatAdapter(activeChatList, new OnItemClickListener() {
-            @Override
-            public void onItemClick(ActiveChat activeChat) {
-                Intent intent = new Intent(getContext(), ChatActivity.class);
-                intent.putExtra("userId", activeChat.toString());
-                startActivity(intent);
-            }
+        adapter = new ActiveChatAdapter(activeChatList, (activeChat) -> {
+            Intent intent = new Intent(getContext(), ChatActivity.class);
+            intent.putExtra("activeChat", activeChat.toString());
+            startActivity(intent);
         });
         recyclerView.setAdapter(adapter);
     }
@@ -106,25 +113,87 @@ public class PlaceholderFragment extends Fragment {
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onNewActiveChat(NewActiveChatEvent event) {
         ActiveChat activeChat = event.getActiveChat();
-        if((index == 1 && activeChat.getIsFav() == 0)||(index == 2 && activeChat.getIsFav() == 1)){
+        if ((index == 1 && activeChat.getIsFav() == 0) || (index == 2 && activeChat.getIsFav() == 1)) {
             adapter.addNewActiveChat(activeChat);
         }
     }
 
-    @Subscribe(threadMode = ThreadMode.MAIN)
+    @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
     public void onGetAllActiveChatEvent(GetAllActiveChatEvent event) {
         if (index == 1) {
             initAdapter(event.getActiveChatList());
+            EventBus.getDefault().removeStickyEvent(event);
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
+    public void onGetAllFavActiveChatEvent(GetAllFavActiveChat event) {
+        if (index == 2) {
+            initAdapter(event.getFavActiveChatList());
+            EventBus.getDefault().removeStickyEvent(event);
         }
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onGetAllFavActiveChatEvent(GetAllFavActiveChat event) {
-        if (index == 2) {
-            initAdapter(event.getFavActiveChatList());
+    public void onMessageStatusUpdate(MessageStatusUpdateEvent messageStatusUpdateEvent) {
+        MessageStatusUpdate messageStatusUpdate = messageStatusUpdateEvent.getMessageStatusUpdate();
+        ActiveChatPosition activeChatPosition = getActiveChatPosition(messageStatusUpdate.getUserId());
+        if (activeChatPosition != null) {
+            ActiveChat activeChat = activeChatPosition.activeChat;
+            activeChat.setLastTextStatus(messageStatusUpdate.getMessageStatus());
+            if(messageStatusUpdate.getMessageStatus() == MessageStatus.READ
+                && messageStatusUpdateEvent.getOriginator().equals(mAuth.getCurrentUser().getUid()))
+                activeChat.setUnreadCount(activeChat.getUnreadCount() -1);
+            adapter.notifyItemChanged(activeChatPosition.position);
         }
     }
 
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMessageReceive(MessageReceiveEvent messageReceiveEvent) {
+        Message message = messageReceiveEvent.getMessage();
+        ActiveChatPosition activeChatPosition = getActiveChatPosition(message.getSentBy());
+        if (activeChatPosition != null) {
+            ActiveChat activeChat = activeChatPosition.activeChat;
+            activeChat.setLastText(message.getMessage());
+            activeChat.setLastTextTime(message.getTimeStamp());
+            activeChat.setSentBy(message.getSentBy());
+            activeChat.setUnreadCount(activeChat.getUnreadCount() + 1);
+            adapter.notifyItemChanged(activeChatPosition.position);
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onMessageOutGoing(MessageOutGoingEvent messageOutGoingEvent) {
+        Message message = messageOutGoingEvent.getMessage();
+        ActiveChatPosition activeChatPosition = getActiveChatPosition(message.getSentTo());
+        if (activeChatPosition != null) {
+            activeChatPosition.activeChat.setLastText(message.getMessage());
+            activeChatPosition.activeChat.setLastTextTime(message.getTimeStamp());
+            activeChatPosition.activeChat.setSentBy(message.getSentBy());
+            activeChatPosition.activeChat.setLastTextStatus(message.getMessageStatus());
+            adapter.notifyItemChanged(activeChatPosition.position);
+        }
+    }
+
+
     //===========================Subscribe To Events End===========================
 
+    private ActiveChatPosition getActiveChatPosition(String userId) {
+        ActiveChatPosition activeChatPosition = null;
+        List<ActiveChat> activeChats = adapter.getActiveChatList();
+        for (int i = 0; i < activeChats.size(); i++) {
+            if (activeChats.get(i).getId().equals(userId)) {
+                activeChatPosition = new ActiveChatPosition();
+                activeChatPosition.activeChat = activeChats.get(i);
+                activeChatPosition.position = i;
+                break;
+            }
+        }
+        return activeChatPosition;
+    }
+
+    private class ActiveChatPosition {
+        public int position;
+        public ActiveChat activeChat;
+    }
 }

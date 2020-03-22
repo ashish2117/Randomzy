@@ -106,7 +106,7 @@ public class MessageReceiverService extends Service {
 
     private void newMessageStatusUpdateArrived(DataSnapshot dataSnapshot, String s) {
         MessageStatusUpdate messageStatusUpdate = dataSnapshot.getValue(MessageStatusUpdate.class);
-        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate));
+        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate, messageStatusUpdate.getUserId() ));
         new IncomingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
     }
 

@@ -3,7 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:id="@+id/chat_bubble_layout">
+    android:id="@+id/chat_bubble_layout"
+    android:elevation="5dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -13,21 +14,22 @@
         android:layout_gravity="center_vertical"
         android:layout_weight="1.0"
         android:text="This is a message from your side"
-        />
+        android:textColor="@color/colorTextPrimary"/>
+
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
         android:layout_gravity="bottom"
-        android:layout_marginBottom="4dp">
+        android:padding="5dp">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#ffffff"
+        android:textColor="@color/colorTextSecondary"
         android:text="12:12 am"
-        android:textSize="9sp"
+        android:textSize="10sp"
         android:layout_marginRight="1dp"
         android:id="@+id/timeStampTextView"/>
 
@@ -35,7 +37,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:id="@+id/messageStatusImageView"
-        android:src="@drawable/ic_access_time_white_14dp"/>
+        android:src="@drawable/ic_access_time_text_secondary_14dp"/>
     </LinearLayout>
 
     <TextView

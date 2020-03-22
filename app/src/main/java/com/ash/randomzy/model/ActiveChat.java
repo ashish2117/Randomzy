@@ -1,41 +1,19 @@
-package com.ash.randomzy.entity;
+package com.ash.randomzy.model;
 
 import com.google.gson.Gson;
 
-import androidx.annotation.NonNull;
-import androidx.room.ColumnInfo;
-import androidx.room.Entity;
-import androidx.room.PrimaryKey;
-
-@Entity
 public class ActiveChat {
 
-    @PrimaryKey
-    @NonNull
     private String id;
-
-    @ColumnInfo(name = "name")
     private String name;
-
-    @ColumnInfo(name = "lastText")
     private String lastText;
-
-    @ColumnInfo(name = "lastTextTime")
     private Long lastTextTime;
-
-    @ColumnInfo(name = "lastTextStatus")
     private int lastTextStatus;
-
-    @ColumnInfo(name = "sentBy")
-    private int sentBy;
-
-    @ColumnInfo(name = "profilePicUrlLocal")
+    private String sentBy;
     private String profilePicUrlLocal;
-
-    @ColumnInfo(name = "profilePicUrlServer")
     private String profilePicUrlServer;
+    private int unreadCount;
 
-    @ColumnInfo(name = "isFav")
     private int isFav;
 
     public int getIsFav() {
@@ -86,16 +64,24 @@ public class ActiveChat {
         this.lastTextStatus = lastTextStatus;
     }
 
-    public int getSentBy() {
+    public String getSentBy() {
         return sentBy;
     }
 
-    public void setSentBy(int sentBy) {
+    public void setSentBy(String sentBy) {
         this.sentBy = sentBy;
     }
 
     public String getProfilePicUrlLocal() {
         return profilePicUrlLocal;
+    }
+
+    public int getUnreadCount() {
+        return unreadCount;
+    }
+
+    public void setUnreadCount(int unreadCount) {
+        this.unreadCount = unreadCount;
     }
 
     public void setProfilePicUrlLocal(String profilePicUrlLocal) {

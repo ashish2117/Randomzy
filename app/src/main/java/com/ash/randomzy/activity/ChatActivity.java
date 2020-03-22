@@ -2,7 +2,6 @@ package com.ash.randomzy.activity;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Gravity;
@@ -20,13 +19,14 @@ import com.ash.randomzy.asynctask.MessageAyncTask;
 import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
 import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.constants.MessageStatus;
-import com.ash.randomzy.entity.ActiveChat;
+import com.ash.randomzy.event.UnreadMessagesByUserEvent;
+import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetMessagesForUserEvent;
 import com.ash.randomzy.event.MessageReceiveEvent;
 import com.ash.randomzy.event.MessageStatusUpdateEvent;
-import com.ash.randomzy.event.UnreadMessagesByUserEvent;
 import com.ash.randomzy.model.MessageStatusUpdate;
+import com.ash.randomzy.utility.MessageStatusUtil;
 import com.ash.randomzy.utility.TimestampUtil;
 import com.ash.randomzy.utility.UserUtil;
 import com.google.firebase.auth.FirebaseAuth;
@@ -65,6 +65,7 @@ public class ChatActivity extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         activeChat = new Gson().fromJson(getIntent().getStringExtra("activeChat"), ActiveChat.class);
         initViews();
+        typingStatus.setVisibility(View.GONE);
         addListeners();
         populateMessageList();
     }
@@ -74,8 +75,8 @@ public class ChatActivity extends AppCompatActivity {
         super.onStart();
         registerToEvents();
         UserUtil.setChatOpenedFor(activeChat.getId());
-        if(initialMessageLoaded)
-            new MessageAyncTask(getApplicationContext(),MessageAyncTask.GET_UNREAD_MESSAGES_BY_USER, activeChat.getId()).execute();
+        if (initialMessageLoaded)
+            new MessageAyncTask(getApplicationContext(), MessageAyncTask.GET_UNREAD_MESSAGES_BY_USER, activeChat.getId()).execute();
     }
 
     @Override
@@ -87,7 +88,7 @@ public class ChatActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        Log.d("randomzy_debug","Paused");
+        Log.d("randomzy_debug", "Paused");
         super.onPause();
     }
 
@@ -125,24 +126,27 @@ public class ChatActivity extends AppCompatActivity {
 
     private void unRegisterToEvents() {
         EventBus.getDefault().unregister(this);
-        Log.d(TAG, "Registered EventBus");
+        Log.d(TAG, "Unregistered EventBus");
     }
 
 
     private void sendMessage() {
         Message message = getMessage();
+        if (message == null)
+            return;
         new MessageAyncTask(this, MessageAyncTask.MESSAGE_SEND_TASK).execute(message);
         addMessageToList(message);
         resetBottomArea();
     }
 
     private void addMessageToList(Message message) {
-        if(message.getMessageStatus() != MessageStatus.READ && !message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+        if (message.getMessageStatus() != MessageStatus.READ && !message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
             MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
             messageStatusUpdate.setUserId(message.getSentBy());
             messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
             messageStatusUpdate.setMessageId(message.getMessageId());
             messageStatusUpdate.setMessageStatus(MessageStatus.READ);
+            EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate, mAuth.getCurrentUser().getUid()));
             new OutgoingMessageStatusUpdateTask(this).execute(messageStatusUpdate);
         }
         LinearLayout chatBubble = getChatBubble(message);
@@ -162,14 +166,15 @@ public class ChatActivity extends AppCompatActivity {
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onMessageUpdate(MessageStatusUpdateEvent event) {
-        if (event.getMessageStatusUpdate().getUserId().equals(activeChat.getId())) {
+        if (event.getMessageStatusUpdate().getUserId().equals(activeChat.getId()) && !event.getOriginator().equals(mAuth.getCurrentUser().getUid())) {
             MessageStatusUpdate messageStatusUpdate = event.getMessageStatusUpdate();
             for (int i = messageListLayout.getChildCount() - 1; i >= 0; i--) {
                 Log.d(TAG, "Loop Run " + i);
                 LinearLayout l = (LinearLayout) messageListLayout.getChildAt(i);
                 if (((TextView) l.findViewById(R.id.messageId)).getText().toString().equals(messageStatusUpdate.getMessageId())) {
                     ImageView imageView = l.findViewById(R.id.messageStatusImageView);
-                    setMessageStatusToImageView(imageView, messageStatusUpdate.getMessageStatus());
+                    if (imageView != null)
+                        MessageStatusUtil.setMessageStatusToImageView(imageView, messageStatusUpdate.getMessageStatus());
                     break;
                 }
             }
@@ -187,7 +192,7 @@ public class ChatActivity extends AppCompatActivity {
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onUnreadMessagesByUserEvent(UnreadMessagesByUserEvent event){
+    public void onUnreadMessagesByUserEvent(UnreadMessagesByUserEvent event) {
         Log.d(TAG, "Received Unread Messages");
         for (int i = event.getMessageList().size() - 1; i >= 0; i--) {
             addMessageToList(event.getMessageList().get(i));
@@ -199,6 +204,8 @@ public class ChatActivity extends AppCompatActivity {
 
 
     private Message getMessage() {
+        if (messageArea.getText().toString().isEmpty())
+            return null;
         Message message = new Message();
         message.setMessageType(MessageTypes.MESSAGE_TYPE_TEXT);
         message.setTimeStamp(System.currentTimeMillis());
@@ -219,7 +226,7 @@ public class ChatActivity extends AppCompatActivity {
         if (message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
             chatBubble = (LinearLayout) layoutInflater.inflate(R.layout.chat_bubble_right, null, false);
             ImageView messageStatusImageView = chatBubble.findViewById(R.id.messageStatusImageView);
-            setMessageStatusToImageView(messageStatusImageView, message.getMessageStatus());
+            MessageStatusUtil.setMessageStatusToImageView(messageStatusImageView, message.getMessageStatus());
             chatBubbleLayoutParams.gravity = Gravity.RIGHT;
             chatBubbleLayoutParams.setMargins(100, 0, 0, 20);
             chatBubble.setBackgroundResource(R.drawable.roundleft);
@@ -236,24 +243,10 @@ public class ChatActivity extends AppCompatActivity {
         messageTextView.setText(message.getMessage());
         messageIdTextView.setText(message.getMessageId());
         messageTextView.setPadding(20, 20, 20, 20);
-        messageTextView.setTextColor(Color.parseColor("#ffffff")); //Remove This to XML File
         chatBubble.setLayoutParams(chatBubbleLayoutParams);
         return chatBubble;
     }
 
-    private void setMessageStatusToImageView(ImageView messageStatusImageView, int messageStatus) {
-        switch (messageStatus) {
-            case MessageStatus.SENT:
-                messageStatusImageView.setImageResource(R.drawable.ic_done_white_14dp);
-                break;
-            case MessageStatus.DELIVERED:
-                messageStatusImageView.setImageResource(R.drawable.ic_done_all_white_14dp);
-                break;
-            case MessageStatus.READ:
-                messageStatusImageView.setImageResource(R.drawable.ic_done_all_blue_24dp);
-                break;
-        }
-    }
 
     private void resetBottomArea() {
         messageArea.setText("");

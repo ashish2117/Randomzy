@@ -4,21 +4,25 @@ import android.content.Context;
 
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.db.RandomzyDatabase;
-import com.ash.randomzy.entity.ActiveChat;
 import com.ash.randomzy.entity.Message;
+import com.ash.randomzy.model.MessageCount;
+import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.List;
 
-import androidx.room.Room;
-
 public class MessageRepository {
-
-    private final String DBNAME = "dandomzy-db";
 
     private RandomzyDatabase randomzyDatabase;
 
+    private final String DBNAME = "dandomzy-db";
+    private FirebaseAuth mAuth;
+
     public List<Message> getAll(){
         return randomzyDatabase.messageDao().getAll();
+    }
+
+    public List<Message> getAll(int messageStatus){
+        return randomzyDatabase.messageDao().getAll(messageStatus);
     }
 
     public List<Message> getMessagesForUser(String userId, int numberOfMessages){
@@ -26,7 +30,8 @@ public class MessageRepository {
     }
 
     public MessageRepository(Context context){
-        randomzyDatabase = Room.databaseBuilder(context, RandomzyDatabase.class,DBNAME).build();
+        randomzyDatabase = RandomzyDatabase.getInstance(context);
+        mAuth = FirebaseAuth.getInstance();
     }
 
     public void insertMessage(Message message){
@@ -55,5 +60,9 @@ public class MessageRepository {
 
     public List<Message> getUnreadMessagesSentByUser(String sentBy){
         return randomzyDatabase.messageDao().getMessageSentByUserOfExcludingStatus(MessageStatus.READ, sentBy);
+    }
+
+    public List<MessageCount> getMyUnreadMessageCount(){
+        return randomzyDatabase.messageDao().getMessageCountOfStatus(MessageStatus.DELIVERED, mAuth.getCurrentUser().getUid());
     }
 }
