@@ -6,6 +6,7 @@ import android.util.Log;
 import android.widget.Toast;
 
 import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.RealTimeDbNodes;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetMessagesForUserEvent;
 import com.ash.randomzy.event.MessageOutGoingEvent;
@@ -91,7 +92,7 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
     }
 
     private void deleteMessage(Message message) {
-        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference("messages")
+        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE)
                 .child(message.getSentTo());
         messageReference.child(message.getMessageId()).removeValue();
     }
@@ -100,7 +101,7 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
         List<Message> list = messageRepository.getAll(MessageStatus.SENDING);
         if(list.size() ==0 )
             return;
-        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference("messages");
+        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE);
         for(Message message: list){
             messageReference.child(message.getSentTo()).child(message.getMessageId()).setValue(message)
                     .addOnCompleteListener((task -> {
@@ -124,7 +125,7 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
         Log.d(TAG, "Message Sender sending a message " + message.getMessageId());
         messageRepository.insertMessage(message);
         checkActiveChatAvail(message);
-        DatabaseReference reference = FirebaseDatabase.getInstance().getReference("messages");
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE);
         reference.child(message.getSentTo())
                 .child(message.getMessageId())
                 .setValue(message)

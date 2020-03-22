@@ -43,7 +43,7 @@
             android:layout_height="wrap_content"
             android:textSize="15sp"
             android:text="Typing..."
-            android:textColor="#455A64"/>
+            android:textColor="@color/colorPrimary"/>
 
     </LinearLayout>
 

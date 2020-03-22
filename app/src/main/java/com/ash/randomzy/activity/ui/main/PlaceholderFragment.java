@@ -2,6 +2,7 @@ package com.ash.randomzy.activity.ui.main;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,6 +22,7 @@ import com.ash.randomzy.activity.ChatActivity;
 import com.ash.randomzy.adapter.ActiveChatAdapter;
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.constants.SentBy;
+import com.ash.randomzy.event.TypingEvent;
 import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetAllActiveChatEvent;
@@ -51,6 +53,7 @@ public class PlaceholderFragment extends Fragment {
     private ActiveChatAdapter adapter;
     private int index;
     private FirebaseAuth mAuth;
+    private CountDownTimer timer;
 
     public static PlaceholderFragment newInstance(int index) {
         PlaceholderFragment fragment = new PlaceholderFragment();
@@ -172,6 +175,28 @@ public class PlaceholderFragment extends Fragment {
             activeChatPosition.activeChat.setSentBy(message.getSentBy());
             activeChatPosition.activeChat.setLastTextStatus(message.getMessageStatus());
             adapter.notifyItemChanged(activeChatPosition.position);
+        }
+    }
+
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onTyping(TypingEvent typingEvent){
+        ActiveChatPosition activeChatPosition = getActiveChatPosition(typingEvent.getTypingStatus().getUserId());
+        if(activeChatPosition != null) {
+            activeChatPosition.activeChat.setIsTyping(1);
+            adapter.notifyItemChanged(activeChatPosition.position);
+            if(timer != null)
+                timer.cancel();
+            timer = new CountDownTimer(1500,1500){
+                @Override
+                public void onTick(long l) { }
+
+                @Override
+                public void onFinish() {
+                    activeChatPosition.activeChat.setIsTyping(0);
+                    adapter.notifyItemChanged(activeChatPosition.position);
+                }
+            };
+            timer.start();
         }
     }
 

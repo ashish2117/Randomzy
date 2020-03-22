@@ -17,8 +17,13 @@
 
     <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
 
-    <style name="ChatBackground" parent="@style/AppTheme">
+    <style name="ChatBackground" parent="@style/Theme.AppCompat.Light.DarkActionBar">
         <item name="android:windowBackground">@drawable/less_light</item>
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="contentInsetStart">0dp</item>
+        <item name="contentInsetEnd">0dp</item>
     </style>
 
 </resources>

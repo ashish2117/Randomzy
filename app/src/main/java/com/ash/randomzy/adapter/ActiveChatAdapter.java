@@ -44,9 +44,16 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
         ActiveChat activeChat = activeChatList.get(position);
         holder.nameTxtView.setText(activeChat.getName());
         holder.lastMessageTxtView.setText(activeChat.getLastText());
-        holder.lastMessageTimeTxtView.setText(TimestampUtil.getTimeIn12HourFormat(activeChat.getLastTextTime()));
+        holder.lastMessageTimeTxtView.setText(TimestampUtil.getTimeLabel(activeChat.getLastTextTime()));
         holder.unreadCountTxtView.setText("" + activeChat.getUnreadCount());
-
+        if (activeChat.getIsTyping() == 0) {
+            holder.typingTextview.setVisibility(View.INVISIBLE);
+            holder.lastMessageTxtView.setVisibility(View.VISIBLE);
+        }
+        else {
+            holder.typingTextview.setVisibility(View.VISIBLE);
+            holder.lastMessageTxtView.setVisibility(View.INVISIBLE);
+        }
         MessageStatusUtil.setMessageStatusToImageView(holder.tickImageView, activeChat.getLastTextStatus());
         holder.activeChat = activeChatList.get(position);
         if (activeChat.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
@@ -88,6 +95,7 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
         ImageView profileImageView;
         ImageView tickImageView;
         LinearLayout activeChatItem;
+        TextView typingTextview;
 
         ActiveChat activeChat;
         OnItemClickListener itemClickListener;
@@ -101,6 +109,7 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
             profileImageView = itemView.findViewById(R.id.profile_image_view);
             tickImageView = itemView.findViewById(R.id.tick_image_view);
             activeChatItem = itemView.findViewById(R.id.active_chat_item);
+            typingTextview = itemView.findViewById(R.id.typing_txt_view);
             itemView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {

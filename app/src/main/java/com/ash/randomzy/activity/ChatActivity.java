@@ -1,11 +1,19 @@
 package com.ash.randomzy.activity;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
+import android.os.CountDownTimer;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -19,6 +27,8 @@ import com.ash.randomzy.asynctask.MessageAyncTask;
 import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
 import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.RealTimeDbNodes;
+import com.ash.randomzy.event.TypingEvent;
 import com.ash.randomzy.event.UnreadMessagesByUserEvent;
 import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.entity.Message;
@@ -26,10 +36,12 @@ import com.ash.randomzy.event.GetMessagesForUserEvent;
 import com.ash.randomzy.event.MessageReceiveEvent;
 import com.ash.randomzy.event.MessageStatusUpdateEvent;
 import com.ash.randomzy.model.MessageStatusUpdate;
+import com.ash.randomzy.model.TypingStatus;
 import com.ash.randomzy.utility.MessageStatusUtil;
 import com.ash.randomzy.utility.TimestampUtil;
 import com.ash.randomzy.utility.UserUtil;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.gson.Gson;
 
@@ -50,12 +62,19 @@ public class ChatActivity extends AppCompatActivity {
     private ImageView sendButton;
     private EditText messageArea;
     private LinearLayout typingStatus, messageListLayout;
+    private View customView;
+    private TextView userNameTextView, onlineStatusTextView;
+
     private LinearLayout.LayoutParams chatBubbleLayoutParams;
     private LayoutInflater layoutInflater;
+
     private List<Message> messageList;
+    private CountDownTimer timer;
+
+    private DatabaseReference fireAndForgetRef;
 
     private static final String TAG = "randomzy_debug";
-
+    private static final String TYPING_TEXT = "Typing...";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,9 +84,9 @@ public class ChatActivity extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         activeChat = new Gson().fromJson(getIntent().getStringExtra("activeChat"), ActiveChat.class);
         initViews();
-        typingStatus.setVisibility(View.GONE);
         addListeners();
         populateMessageList();
+        fireAndForgetRef = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.FIRE_AND_FORGET_NODE).child(activeChat.getId());
     }
 
     @Override
@@ -97,12 +116,33 @@ public class ChatActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.chat_activity_menu, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        return super.onOptionsItemSelected(item);
+    }
+
     private void initViews() {
         scrollView = findViewById(R.id.scrollView);
         sendButton = findViewById(R.id.sendButton);
         messageArea = findViewById(R.id.messageArea);
         messageListLayout = findViewById(R.id.message_list_layout);
         typingStatus = findViewById(R.id.typingStatus);
+        getSupportActionBar().setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
+        getSupportActionBar().setDisplayShowCustomEnabled(true);
+        getSupportActionBar().setCustomView(R.layout.actionbar_chat_activity);
+        customView = getSupportActionBar().getCustomView();
+        userNameTextView = customView.findViewById(R.id.usernameText);
+        onlineStatusTextView = customView.findViewById(R.id.onlineStatusText);
+        typingStatus.setVisibility(View.GONE);
+
+        userNameTextView.setText(activeChat.getName());
     }
 
     private void addListeners() {
@@ -112,6 +152,32 @@ public class ChatActivity extends AppCompatActivity {
 
         scrollView.addOnLayoutChangeListener((view, i, i1, i2, i3, i4, i5, i6, i7) -> {
             scrollToBottom();
+        });
+
+        customView.findViewById(R.id.backButton).setOnClickListener((view -> {
+            finish();
+        }));
+
+        messageArea.addTextChangedListener(new TextWatcher() {
+            private long lastSent = 0;
+
+            @Override
+            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+                if (System.currentTimeMillis() - lastSent > 1500) {
+                    TypingStatus typingStatus = new TypingStatus();
+                    typingStatus.setUserId(mAuth.getCurrentUser().getUid());
+                    fireAndForgetRef.push().setValue(typingStatus);
+                    lastSent = System.currentTimeMillis();
+                }
+            }
+
+            @Override
+            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+            }
         });
     }
 
@@ -161,6 +227,9 @@ public class ChatActivity extends AppCompatActivity {
             Log.d(TAG, "Received a new message");
             addMessageToList(event.getMessage());
             messageList.add(event.getMessage());
+            onlineStatusTextView.setText("Online");
+            if(timer != null)
+                timer.cancel();
         }
     }
 
@@ -200,6 +269,25 @@ public class ChatActivity extends AppCompatActivity {
         }
     }
 
+    @Subscribe(threadMode = ThreadMode.MAIN)
+    public void onTyping(TypingEvent typingEvent) {
+        if(typingEvent.getTypingStatus().getUserId().equals(activeChat.getId())) {
+            onlineStatusTextView.setText(TYPING_TEXT);
+            if (timer != null)
+                timer.cancel();
+            timer = new CountDownTimer(1500, 1500) {
+                @Override
+                public void onTick(long l) {
+                }
+
+                @Override
+                public void onFinish() {
+                    onlineStatusTextView.setText("Online");
+                }
+            };
+            timer.start();
+        }
+    }
     //====================================Subscribe To Events Complete===========================
 
 
@@ -228,12 +316,12 @@ public class ChatActivity extends AppCompatActivity {
             ImageView messageStatusImageView = chatBubble.findViewById(R.id.messageStatusImageView);
             MessageStatusUtil.setMessageStatusToImageView(messageStatusImageView, message.getMessageStatus());
             chatBubbleLayoutParams.gravity = Gravity.RIGHT;
-            chatBubbleLayoutParams.setMargins(100, 0, 0, 20);
+            chatBubbleLayoutParams.setMargins(100, 0, 0, 15);
             chatBubble.setBackgroundResource(R.drawable.roundleft);
         } else {
             chatBubble = (LinearLayout) layoutInflater.inflate(R.layout.chat_bubble_left, null, false);
             chatBubbleLayoutParams.gravity = Gravity.LEFT;
-            chatBubbleLayoutParams.setMargins(0, 0, 100, 20);
+            chatBubbleLayoutParams.setMargins(0, 0, 100, 15);
             chatBubble.setBackgroundResource(R.drawable.roundright);
         }
         TextView messageTextView = chatBubble.findViewById(R.id.messageTextView);
@@ -261,28 +349,4 @@ public class ChatActivity extends AppCompatActivity {
         scrollView.smoothScrollBy(0, delta);
     }
 
-
-    private class TypingThread extends Thread {
-        int count = 0;
-
-        @Override
-        public void run() {
-            while (true) {
-                try {
-                    Thread.sleep(100);
-                    count++;
-                    if (count == 20) {
-                        FirebaseDatabase.getInstance().getReference()
-                                .child("typing_status")
-                                .child(activeChat.getId())
-                                .child(mAuth.getCurrentUser().getUid()).removeValue();
-                        count = 0;
-                    }
-                } catch (InterruptedException e) {
-
-                }
-            }
-
-        }
-    }
 }

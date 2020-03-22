@@ -30,8 +30,9 @@
         </activity>
         <activity
             android:name=".activity.LoginActivity"
-            android:theme="@style/Theme.AppCompat.NoActionBar" /> <!-- ==========================services========================= -->
-        <service android:name=".service.MessageReceiverService" />
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <!-- ==========================services========================= -->
+        <service android:name=".service.RealTimeDbListenerService" />
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />

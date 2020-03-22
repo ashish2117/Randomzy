@@ -6,7 +6,7 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.ash.randomzy.repository.ActiveChatRepository;
-import com.ash.randomzy.service.MessageReceiverService;
+import com.ash.randomzy.service.RealTimeDbListenerService;
 
 import java.util.List;
 
@@ -34,7 +34,7 @@ public class UserUtil {
             @Override
             protected void onPostExecute(Void aVoid) {
                 super.onPostExecute(aVoid);
-                context.startService(new Intent(context, MessageReceiverService.class));
+                context.startService(new Intent(context, RealTimeDbListenerService.class));
             }
         }.execute();
     }

@@ -13,6 +13,7 @@ public class ActiveChat {
     private String profilePicUrlLocal;
     private String profilePicUrlServer;
     private int unreadCount;
+    private int isTyping;
 
     private int isFav;
 
@@ -94,6 +95,14 @@ public class ActiveChat {
 
     public void setProfilePicUrlServer(String profilePicUrlServer) {
         this.profilePicUrlServer = profilePicUrlServer;
+    }
+
+    public int getIsTyping() {
+        return isTyping;
+    }
+
+    public void setIsTyping(int isTyping) {
+        this.isTyping = isTyping;
     }
 
     @Override

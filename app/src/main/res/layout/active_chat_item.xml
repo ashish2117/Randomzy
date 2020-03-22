@@ -7,11 +7,11 @@
     android:id="@+id/active_chat_item">
 
     <de.hdodenhof.circleimageview.CircleImageView
-        android:layout_width="60dp"
-        android:layout_height="60dp"
+        android:layout_width="55dp"
+        android:layout_height="55dp"
         android:id="@+id/profile_image_view"
         android:layout_gravity="center"
-        android:src="@drawable/ic_launcher_background" />
+        android:src="@drawable/dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -49,8 +49,8 @@
             android:padding="1dp">
 
             <ImageView
-                android:layout_width="21dp"
-                android:layout_height="21dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
                 android:layout_alignParentRight="true"
                 android:src="@drawable/ic_access_time_text_secondary_14dp"
                 android:id="@+id/tick_image_view"/>
@@ -60,6 +60,17 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Last Message"
+                android:layout_alignParentStart="true"
+                android:textSize="16sp"/>
+
+            <TextView
+                android:id="@+id/typing_txt_view"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Typing..."
+                android:layout_alignParentStart="true"
+                android:textStyle="bold"
+                android:textColor="@color/colorAccent"
                 android:textSize="16sp"/>
 
             <TextView

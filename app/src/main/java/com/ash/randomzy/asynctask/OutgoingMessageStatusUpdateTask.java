@@ -5,13 +5,12 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.RealTimeDbNodes;
 import com.ash.randomzy.model.MessageStatusUpdate;
 import com.ash.randomzy.repository.MessageRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
-
-import java.security.acl.LastOwnerException;
 
 public class OutgoingMessageStatusUpdateTask extends AsyncTask<MessageStatusUpdate, Void, Void> {
 
@@ -36,7 +35,7 @@ public class OutgoingMessageStatusUpdateTask extends AsyncTask<MessageStatusUpda
     private void sendMessageStatus(MessageStatusUpdate messageStatusUpdate){
         String sendMessageStatusUpdateTo = messageStatusUpdate.getUserId();
         messageStatusUpdate.setUserId(mAuth.getCurrentUser().getUid());
-        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference("messages");
+        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE);
         messageReference.child(sendMessageStatusUpdateTo).child(messageStatusUpdate.getMessageId()).setValue(messageStatusUpdate);
     }
 }

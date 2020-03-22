@@ -10,12 +10,13 @@ import com.ash.randomzy.asynctask.MessageAyncTask;
 import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.constants.MessageTypes;
+import com.ash.randomzy.constants.RealTimeDbNodes;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.MessageReceiveEvent;
 import com.ash.randomzy.event.MessageStatusUpdateEvent;
+import com.ash.randomzy.event.TypingEvent;
 import com.ash.randomzy.model.MessageStatusUpdate;
-import com.ash.randomzy.repository.ActiveChatRepository;
-import com.ash.randomzy.repository.MessageRepository;
+import com.ash.randomzy.model.TypingStatus;
 import com.ash.randomzy.utility.UserUtil;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.ChildEventListener;
@@ -29,12 +30,11 @@ import org.greenrobot.eventbus.EventBus;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-public class MessageReceiverService extends Service {
+public class RealTimeDbListenerService extends Service {
 
     private FirebaseAuth mAuth;
     private DatabaseReference messageReference;
-    private MessageRepository messageRepository;
-    private ActiveChatRepository activeChatRepository;
+    private DatabaseReference fireAndForgetRef;
 
     @Nullable
     @Override
@@ -48,13 +48,13 @@ public class MessageReceiverService extends Service {
         mAuth = FirebaseAuth.getInstance();
         initDatabaseReferences();
         addDatabaseReferenceListeners();
-        messageRepository = new MessageRepository(getApplicationContext());
-        activeChatRepository = new ActiveChatRepository(getApplicationContext());
         super.onCreate();
     }
 
     private void initDatabaseReferences() {
-        messageReference = FirebaseDatabase.getInstance().getReference("messages")
+        messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE)
+                .child(mAuth.getCurrentUser().getUid());
+        fireAndForgetRef = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.FIRE_AND_FORGET_NODE)
                 .child(mAuth.getCurrentUser().getUid());
     }
 
@@ -72,7 +72,6 @@ public class MessageReceiverService extends Service {
 
     private void newMessageArrvied(DataSnapshot dataSnapshot, String s) {
         Log.d("randomzy_debug", "New Message Arrived");
-        Log.d("randomzy_debug", dataSnapshot.toString());
         int meesageType = ((Long) dataSnapshot.child("messageType").getValue()).intValue();
         switch (meesageType) {
             case MessageTypes.MESSAGE_TYPE_TEXT:
@@ -84,6 +83,15 @@ public class MessageReceiverService extends Service {
         }
     }
 
+    private void fireAndForgetMessageArrived(DataSnapshot dataSnapshot, String s) {
+        Log.d("randomzy_debug", "New Fire and Forget Message Arrived");
+        int meesageType = ((Long) dataSnapshot.child("messageType").getValue()).intValue();
+        switch (meesageType){
+            case MessageTypes.MESSAGE_TYPE_TYPING:
+                typingStatusArrived(dataSnapshot, s);
+        }
+    }
+
     public void newTextMessageArrived(DataSnapshot dataSnapshot, String s) {
         Message message = dataSnapshot.getValue(Message.class);
         String sentBy = message.getSentBy();
@@ -91,14 +99,14 @@ public class MessageReceiverService extends Service {
             EventBus.getDefault().post(new MessageReceiveEvent(message));
             new MessageAyncTask(getApplicationContext(), MessageAyncTask.INSERT_DB_DELETE_REMOTE_TASK).execute(message);
             Log.d("randomzy_debug", "===" + UserUtil.getChatOpenedFor() + "===");
-            if(!UserUtil.getChatOpenedFor().equals(sentBy)){
+            if (!UserUtil.getChatOpenedFor().equals(sentBy)) {
                 Log.d("randomzy_debug", "No Chat Opened");
                 MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
                 messageStatusUpdate.setUserId(sentBy);
                 messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
                 messageStatusUpdate.setMessageId(message.getMessageId());
                 messageStatusUpdate.setMessageStatus(MessageStatus.DELIVERED);
-                                new OutgoingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
+                new OutgoingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
             }
         }
     }
@@ -106,8 +114,14 @@ public class MessageReceiverService extends Service {
 
     private void newMessageStatusUpdateArrived(DataSnapshot dataSnapshot, String s) {
         MessageStatusUpdate messageStatusUpdate = dataSnapshot.getValue(MessageStatusUpdate.class);
-        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate, messageStatusUpdate.getUserId() ));
+        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate, messageStatusUpdate.getUserId()));
         new IncomingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
+    }
+
+    private void typingStatusArrived(DataSnapshot dataSnapshot, String s) {
+        TypingStatus typingStatus = dataSnapshot.getValue(TypingStatus.class);
+        EventBus.getDefault().post(new TypingEvent(typingStatus));
+        fireAndForgetRef.child(dataSnapshot.getKey()).removeValue();
     }
 
 
@@ -136,6 +150,31 @@ public class MessageReceiverService extends Service {
             }
         });
 
+        ChildEventListener fireAndForgetListener = new ChildEventListener() {
+            @Override
+            public void onChildAdded(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
+                fireAndForgetMessageArrived(dataSnapshot, s);
+            }
+
+            @Override
+            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
+
+            @Override
+            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) { }
+
+            @Override
+            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) { }
+        };
+
+        fireAndForgetRef.removeValue().addOnCompleteListener((task -> {
+            if(task.isSuccessful()){
+               fireAndForgetRef.addChildEventListener(fireAndForgetListener);
+            }
+        }));
     }
+
 
 }

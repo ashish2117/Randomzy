@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.AsyncTask;
 
 import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.RealTimeDbNodes;
 import com.ash.randomzy.model.MessageStatusUpdate;
 import com.ash.randomzy.repository.MessageRepository;
 import com.google.firebase.auth.FirebaseAuth;
@@ -36,7 +37,7 @@ public class IncomingMessageStatusUpdateTask extends AsyncTask<MessageStatusUpda
     }
 
     private void deleteMessageStatus(MessageStatusUpdate messageStatusUpdate){
-        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference("messages");
+        DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE);
         messageReference.child(mAuth.getCurrentUser().getUid()).child(messageStatusUpdate.getMessageId()).removeValue();
     }
 
