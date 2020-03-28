@@ -20,13 +20,15 @@ public interface LocalUserDao {
     @Query("DELETE FROM LocalUser")
     void deleteAllLocalUsers();
 
-    @Query("DELETE FROM localuser WHERE id =:id")
+    @Query("DELETE FROM Localuser WHERE id =:id")
     void deleteLocalUser(String id);
 
-    @Query("SELECT * FROM localuser WHERE isFav =1")
+    @Query("SELECT * FROM Localuser WHERE isFav =1")
     List<LocalUser> getAllFavLocalUsers();
 
     @Query("SELECT id FROM LocalUser")
     List<String> getAllIds();
 
+    @Query("UPDATE LocalUser SET isFav =:isFav WHERE id =:id")
+    void updateIsFav(String id, int isFav);
 }

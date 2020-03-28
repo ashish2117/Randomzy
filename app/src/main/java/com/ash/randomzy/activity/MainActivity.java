@@ -22,7 +22,7 @@ import android.widget.PopupMenu;
 import com.ash.randomzy.activity.ui.main.SectionsPagerAdapter;
 import com.google.firebase.auth.FirebaseAuth;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity {
 
     private FirebaseAuth mAuth;
 

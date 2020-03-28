@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <item android:id="@+id/clear_chat"
         android:title="Clear Chat"/>
+
+    <item android:id="@+id/deleteOrFav"
+        android:title="Add To Favourites"
+        android:icon="@drawable/ic_delete_white_24dp"
+        app:showAsAction="always">
+    </item>
+
+    <item android:id="@+id/attachFile"
+        app:showAsAction="always"
+        android:title="Attach Image"
+        android:icon="@drawable/ic_attach_file_gray_24dp">
+    </item>
+
 </menu>

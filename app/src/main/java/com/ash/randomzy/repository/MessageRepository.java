@@ -9,6 +9,7 @@ import com.ash.randomzy.model.MessageCount;
 import com.google.firebase.auth.FirebaseAuth;
 
 import java.util.List;
+import java.util.Set;
 
 public class MessageRepository {
 
@@ -64,5 +65,9 @@ public class MessageRepository {
 
     public List<MessageCount> getMyUnreadMessageCount(){
         return randomzyDatabase.messageDao().getMessageCountOfStatus(MessageStatus.DELIVERED, mAuth.getCurrentUser().getUid());
+    }
+
+    public void deleteMultipleMessages(Set<String> idList){
+        randomzyDatabase.messageDao().deleteMultipleMessages(idList);
     }
 }

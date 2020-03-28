@@ -40,7 +40,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentRight="true"
-                android:text="12:12 pm"></TextView>
+                android:text="12:12 pm"/>
+
         </RelativeLayout>
 
         <RelativeLayout
@@ -61,7 +62,8 @@
                 android:layout_height="wrap_content"
                 android:text="Last Message"
                 android:layout_alignParentStart="true"
-                android:textSize="16sp"/>
+                android:textSize="16sp"
+                android:textColor="@color/colorTextSecondary"/>
 
             <TextView
                 android:id="@+id/typing_txt_view"

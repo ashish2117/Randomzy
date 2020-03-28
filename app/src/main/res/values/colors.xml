@@ -9,4 +9,5 @@
     <color name="colorTextSecondary">#757575</color>
     <color name="colorDivider">#BDBDBD</color>
     <color name="white">#ffffff</color>
+    <color name="grayTranslucent">#33000000</color>
 </resources>

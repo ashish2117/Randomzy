@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 public class MessageStatusUpdate {
 
     private int messageType;
+    private int forMessageType;
     private String messageId;
     private long timeStamp;
     private int messageStatus;
@@ -21,6 +22,14 @@ public class MessageStatusUpdate {
 
     public void setMessageType(int messageType) {
         this.messageType = messageType;
+    }
+
+    public int getForMessageType() {
+        return forMessageType;
+    }
+
+    public void setForMessageType(int forMessageType) {
+        this.forMessageType = forMessageType;
     }
 
     public String getMessageId() {

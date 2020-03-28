@@ -29,7 +29,6 @@ public class RegisterActivity extends AppCompatActivity {
     private EditText name, password, emailTxt, confPass;
     private Button registerButton;
     private TextView login;
-    ProgressDialog pd;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

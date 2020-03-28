@@ -4,6 +4,7 @@ import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.model.MessageCount;
 
 import java.util.List;
+import java.util.Set;
 
 import androidx.room.Dao;
 import androidx.room.Insert;
@@ -42,9 +43,15 @@ public interface MessageDao {
     @Query("SELECT * FROM message WHERE messageStatus !=:messageStatus AND sentBy =:sentBy ORDER BY timeStamp DESC")
     List<Message> getMessageSentByUserOfExcludingStatus(int messageStatus, String sentBy);
 
+    @Query("SELECT * FROM message WHERE messageStatus !=:messageStatus AND sentTo =:sentTo ORDER BY timeStamp DESC")
+    List<Message> getMessageSentToUserOfExcludingStatus(int messageStatus, String sentTo);
+
     @Query("SELECT * FROM message WHERE messageStatus =:messageStatus")
     List<Message> getAll(int messageStatus);
 
    @Query("SELECT sentBy as userId, COUNT(*) as count FROM Message where messageStatus =:messageStatus AND sentBy !=:userId GROUP BY sentBy")
     List<MessageCount> getMessageCountOfStatus(int messageStatus, String userId);
+
+   @Query("DELETE FROM Message WHERE messageId in (:idList)")
+    void deleteMultipleMessages(Set<String> idList);
 }

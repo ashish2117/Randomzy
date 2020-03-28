@@ -88,15 +88,9 @@ public class PlaceholderFragment extends Fragment {
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.addItemDecoration(new DividerItemDecoration(getContext(), LinearLayoutManager.VERTICAL));
         int index = getArguments().getInt(ARG_SECTION_NUMBER);
-        //if (index == 1)
-            //new ActiveChatAsyncTask(getContext(), ActiveChatAsyncTask.GET_ALL_ACTIVE_CHAT).execute();
-        //else if (index == 2)
-            //new ActiveChatAsyncTask(getContext(), ActiveChatAsyncTask.GET_ALL_FAV_ACTIVE_CHAT).execute();
         pageViewModel.getText().observe(this, new Observer<String>() {
             @Override
-            public void onChanged(@Nullable String s) {
-            }
-
+            public void onChanged(@Nullable String s) { }
         });
         EventBus.getDefault().register(PlaceholderFragment.this);
         return root;
@@ -140,13 +134,12 @@ public class PlaceholderFragment extends Fragment {
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onMessageStatusUpdate(MessageStatusUpdateEvent messageStatusUpdateEvent) {
         MessageStatusUpdate messageStatusUpdate = messageStatusUpdateEvent.getMessageStatusUpdate();
-        ActiveChatPosition activeChatPosition = getActiveChatPosition(messageStatusUpdate.getUserId());
+        ActiveChatPosition activeChatPosition = getActiveChatPosition(messageStatusUpdateEvent.getActiveChatId());
         if (activeChatPosition != null) {
             ActiveChat activeChat = activeChatPosition.activeChat;
             activeChat.setLastTextStatus(messageStatusUpdate.getMessageStatus());
-            if(messageStatusUpdate.getMessageStatus() == MessageStatus.READ
-                && messageStatusUpdateEvent.getOriginator().equals(mAuth.getCurrentUser().getUid()))
-                activeChat.setUnreadCount(activeChat.getUnreadCount() -1);
+            if (messageStatusUpdate.getMessageStatus() == MessageStatus.READ)
+                activeChat.setUnreadCount(0);
             adapter.notifyItemChanged(activeChatPosition.position);
         }
     }
@@ -179,16 +172,17 @@ public class PlaceholderFragment extends Fragment {
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onTyping(TypingEvent typingEvent){
+    public void onTyping(TypingEvent typingEvent) {
         ActiveChatPosition activeChatPosition = getActiveChatPosition(typingEvent.getTypingStatus().getUserId());
-        if(activeChatPosition != null) {
+        if (activeChatPosition != null) {
             activeChatPosition.activeChat.setIsTyping(1);
             adapter.notifyItemChanged(activeChatPosition.position);
-            if(timer != null)
+            if (timer != null)
                 timer.cancel();
-            timer = new CountDownTimer(1500,1500){
+            timer = new CountDownTimer(1500, 1500) {
                 @Override
-                public void onTick(long l) { }
+                public void onTick(long l) {
+                }
 
                 @Override
                 public void onFinish() {

@@ -6,6 +6,7 @@ import android.util.Log;
 import android.widget.Toast;
 
 import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.constants.RealTimeDbNodes;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.GetMessagesForUserEvent;
@@ -21,15 +22,19 @@ import com.google.firebase.database.FirebaseDatabase;
 
 import org.greenrobot.eventbus.EventBus;
 
+import java.io.StringReader;
 import java.util.List;
+import java.util.Set;
 
-public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
+public class MessageAsyncTask extends AsyncTask<Message, Void, Void> {
 
     public static final int MESSAGE_SEND_TASK = 0;
     public static final int GET_MESSAGES_FOR_USER_TASK = 1;
     public static final int INSERT_DB_DELETE_REMOTE_TASK = 2;
     public static final int GET_UNREAD_MESSAGES_BY_USER = 3;
     public static final int SEND_UNSENT_MESSAGES = 4;
+    public static final int INSERT_MESSAGE_TO_DB = 5;
+    public static final int DELETE_MULTIPLE_MESSAGES = 6;
 
     private static final String TAG = "randomzy_debug";
 
@@ -38,15 +43,24 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
     private Context context;
     private MessageRepository messageRepository;
     private String userId;
+    private Set<String> listOfIdsToBeDeleted;
 
-    public MessageAyncTask(Context context, int messageTaskType) {
+    public MessageAsyncTask(Context context, int messageTaskType) {
         this.context = context;
         this.messageTaskType = messageTaskType;
         this.mAuth = FirebaseAuth.getInstance();
         this.messageRepository = new MessageRepository(context);
     }
 
-    public MessageAyncTask(Context context, int messageTaskType, String userId) {
+    public MessageAsyncTask(Context context, int messageTaskType, Set<String> listOfIdsToBeDeleted) {
+        this.context = context;
+        this.messageTaskType = messageTaskType;
+        this.mAuth = FirebaseAuth.getInstance();
+        this.messageRepository = new MessageRepository(context);
+        this.listOfIdsToBeDeleted = listOfIdsToBeDeleted;
+    }
+
+    public MessageAsyncTask(Context context, int messageTaskType, String userId) {
         this.context = context;
         this.messageTaskType = messageTaskType;
         this.mAuth = FirebaseAuth.getInstance();
@@ -69,9 +83,16 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
                 getUnreadMessagesSentByUser(userId);
             case SEND_UNSENT_MESSAGES:
                 sendUnsentMessages();
+                break;
+            case INSERT_MESSAGE_TO_DB:
+                insertMessageTodb(messages[0]);
+                break;
+            case DELETE_MULTIPLE_MESSAGES:
+                messageRepository.deleteMultipleMessages(listOfIdsToBeDeleted);
         }
         return null;
     }
+
 
     private void getUnreadMessagesSentByUser(String userId) {
         List<Message> list = messageRepository.getUnreadMessagesSentByUser(userId);
@@ -99,14 +120,15 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
 
     private void sendUnsentMessages() {
         List<Message> list = messageRepository.getAll(MessageStatus.SENDING);
-        if(list.size() ==0 )
+        if (list.size() == 0)
             return;
         DatabaseReference messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE);
-        for(Message message: list){
-            messageReference.child(message.getSentTo()).child(message.getMessageId()).setValue(message)
-                    .addOnCompleteListener((task -> {
-                        postOutGoingMessageStatusUdate(message, MessageStatus.SENT);
-                    }));
+        for (Message message : list) {
+            if (message.getMessageType() != MessageTypes.MESSAGE_TYPE_IMAGE)
+                messageReference.child(message.getSentTo()).child(message.getMessageId()).setValue(message)
+                        .addOnCompleteListener((task -> {
+                            postOutGoingMessageStatusUdate(message, MessageStatus.SENT);
+                        }));
         }
     }
 
@@ -138,13 +160,15 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
         }));
     }
 
-    private void postOutGoingMessageStatusUdate(Message message, int messageStatus){
+    private void postOutGoingMessageStatusUdate(Message message, int messageStatus) {
         MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
         messageStatusUpdate.setUserId(message.getSentTo());
         messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
         messageStatusUpdate.setMessageId(message.getMessageId());
-        messageStatusUpdate.setMessageStatus(MessageStatus.SENT);
-        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate, mAuth.getCurrentUser().getUid()));
+        messageStatusUpdate.setMessageStatus(messageStatus);
+        messageStatusUpdate.setForMessageType(message.getMessageType());
+        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate,
+                mAuth.getCurrentUser().getUid(), message.getSentTo()));
         new OutgoingMessageStatusUpdateTask(context)
                 .execute(messageStatusUpdate);
     }
@@ -153,7 +177,7 @@ public class MessageAyncTask extends AsyncTask<Message, Void, Void> {
         if (!UserUtil.hasUser(message.getSentTo())) {
             new ActiveChatAsyncTask(context, ActiveChatAsyncTask.ADD_NEW_OUTGOING_ACTIVE_CHAT, message).execute();
             return;
-        }else {
+        } else {
             EventBus.getDefault().post(new MessageOutGoingEvent(message));
         }
     }

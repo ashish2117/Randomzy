@@ -43,4 +43,8 @@ public class LocalUserRepository {
     public List<String> getAllIds(){
         return randomzyDatabase.localUserDao().getAllIds();
     }
+
+    public void updateIsFav(String id, int isFav){
+        randomzyDatabase.localUserDao().updateIsFav(id, isFav);
+    }
 }

@@ -6,7 +6,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import com.ash.randomzy.asynctask.IncomingMessageStatusUpdateTask;
-import com.ash.randomzy.asynctask.MessageAyncTask;
+import com.ash.randomzy.asynctask.MessageAsyncTask;
 import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.constants.MessageTypes;
@@ -24,6 +24,7 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ServerValue;
 
 import org.greenrobot.eventbus.EventBus;
 
@@ -35,6 +36,7 @@ public class RealTimeDbListenerService extends Service {
     private FirebaseAuth mAuth;
     private DatabaseReference messageReference;
     private DatabaseReference fireAndForgetRef;
+    private DatabaseReference onlineStatusRef;
 
     @Nullable
     @Override
@@ -56,10 +58,13 @@ public class RealTimeDbListenerService extends Service {
                 .child(mAuth.getCurrentUser().getUid());
         fireAndForgetRef = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.FIRE_AND_FORGET_NODE)
                 .child(mAuth.getCurrentUser().getUid());
+        onlineStatusRef = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.USERS_NODE)
+                .child(mAuth.getCurrentUser().getUid()).child(RealTimeDbNodes.ONLINE_STATUS_NODE);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        onlineStatusRef.setValue("Online");
         return super.onStartCommand(intent, flags, startId);
     }
 
@@ -97,7 +102,7 @@ public class RealTimeDbListenerService extends Service {
         String sentBy = message.getSentBy();
         if (!sentBy.equals(mAuth.getCurrentUser().getUid())) {
             EventBus.getDefault().post(new MessageReceiveEvent(message));
-            new MessageAyncTask(getApplicationContext(), MessageAyncTask.INSERT_DB_DELETE_REMOTE_TASK).execute(message);
+            new MessageAsyncTask(getApplicationContext(), MessageAsyncTask.INSERT_DB_DELETE_REMOTE_TASK).execute(message);
             Log.d("randomzy_debug", "===" + UserUtil.getChatOpenedFor() + "===");
             if (!UserUtil.getChatOpenedFor().equals(sentBy)) {
                 Log.d("randomzy_debug", "No Chat Opened");
@@ -106,6 +111,7 @@ public class RealTimeDbListenerService extends Service {
                 messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
                 messageStatusUpdate.setMessageId(message.getMessageId());
                 messageStatusUpdate.setMessageStatus(MessageStatus.DELIVERED);
+                messageStatusUpdate.setForMessageType(message.getMessageType());
                 new OutgoingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
             }
         }
@@ -114,7 +120,8 @@ public class RealTimeDbListenerService extends Service {
 
     private void newMessageStatusUpdateArrived(DataSnapshot dataSnapshot, String s) {
         MessageStatusUpdate messageStatusUpdate = dataSnapshot.getValue(MessageStatusUpdate.class);
-        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate, messageStatusUpdate.getUserId()));
+        EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate,
+                messageStatusUpdate.getUserId(), messageStatusUpdate.getUserId()));
         new IncomingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
     }
 
@@ -127,6 +134,8 @@ public class RealTimeDbListenerService extends Service {
 
     private void addDatabaseReferenceListeners() {
 
+        onlineStatusRef.onDisconnect().setValue(ServerValue.TIMESTAMP);
+
         messageReference.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
@@ -134,21 +143,19 @@ public class RealTimeDbListenerService extends Service {
             }
 
             @Override
-            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
-            }
+            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
 
             @Override
-            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) {
-            }
+            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) { }
 
             @Override
-            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
-            }
+            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) {
-            }
+            public void onCancelled(@NonNull DatabaseError databaseError) { }
         });
+
+
 
         ChildEventListener fireAndForgetListener = new ChildEventListener() {
             @Override

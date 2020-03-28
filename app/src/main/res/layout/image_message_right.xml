@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@drawable/right_message_bg_25dp_radius"
+    android:padding="10dp"
+    android:elevation="5dp"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:id="@+id/image_message_image_view"
+            android:scaleType="centerCrop"
+            android:src="@drawable/less_light"
+            android:transitionName="@string/transition_image_view"/>
+
+
+        <com.dinuscxj.progressbar.CircleProgressBar
+            android:id="@+id/progress_circ"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginTop="5dp"
+            app:line_count="30"
+            app:line_width="4dp"
+            app:progress_background_color="@color/white"
+            app:progress_end_color="#03A9F4"
+            app:progress_shader="sweep"
+            app:progress_start_color="#03A9F4"
+            app:progress_stroke_cap="round"
+            app:progress_stroke_width="4dp"
+            app:progress_text_color="@color/colorText"
+            app:style="solid_line"
+            android:layout_gravity="center"
+            app:progress_text_size="13sp"
+            android:background="@drawable/circular_gray_transparent" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="right|bottom"
+            android:layout_marginBottom="5dp"
+            android:layout_marginRight="5dp"
+            android:padding="2dp"
+            android:background="@drawable/timestap_bg_image_message"
+            android:elevation="5dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:id="@+id/image_message_timestamp_text_view"
+                android:text="10:50 AM"
+                android:textColor="#ffffffff"
+                android:layout_marginRight="5dp"
+                android:textSize="10dp"/>
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:id="@+id/messageStatusImageView"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_access_time_white_14dp" />
+
+        </LinearLayout>
+    </FrameLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/image_message_text_view"
+        android:maxWidth="200dp"
+        android:textColor="@color/colorTextPrimary"
+        android:text="This is a message with the image"/>
+
+
+</LinearLayout>

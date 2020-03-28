@@ -6,10 +6,12 @@ public class MessageStatusUpdateEvent {
 
     private MessageStatusUpdate messageStatusUpdate;
     private String originator;
+    private String activeChatId;
 
-    public MessageStatusUpdateEvent(MessageStatusUpdate messageStatusUpdate, String originator){
+    public MessageStatusUpdateEvent(MessageStatusUpdate messageStatusUpdate, String originator, String activeChatId){
         this.messageStatusUpdate = messageStatusUpdate;
         this.originator = originator;
+        this.activeChatId = activeChatId;
     }
 
     public MessageStatusUpdate getMessageStatusUpdate(){
@@ -18,5 +20,9 @@ public class MessageStatusUpdateEvent {
 
     public String getOriginator() {
         return originator;
+    }
+
+    public String getActiveChatId() {
+        return activeChatId;
     }
 }
