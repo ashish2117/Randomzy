@@ -2,6 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:background="@drawable/left_message_bg_25dp_radius"
     android:orientation="vertical"
     android:padding="10dp"
@@ -18,6 +19,33 @@
             android:scaleType="centerCrop"
             android:src="@drawable/less_light" />
 
+        <com.dinuscxj.progressbar.CircleProgressBar
+            android:id="@+id/progress_circ"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:layout_marginTop="5dp"
+            app:line_count="30"
+            app:line_width="4dp"
+            app:progress_background_color="@color/white"
+            app:progress_end_color="#03A9F4"
+            app:progress_shader="sweep"
+            app:progress_start_color="#03A9F4"
+            app:progress_stroke_cap="round"
+            app:progress_stroke_width="4dp"
+            app:progress_text_color="@color/colorText"
+            app:style="solid_line"
+            android:layout_gravity="center"
+            app:progress_text_size="13sp"
+            android:background="@drawable/circular_gray_transparent" />
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:id="@+id/downLoadImage"
+            android:src="@drawable/ic_file_download_white_24dp"
+            android:background="@drawable/circular_gray_transparent"
+            android:padding="12dp"/>
 
         <TextView
             android:id="@+id/image_message_timestamp_text_view"
@@ -32,7 +60,7 @@
     </FrameLayout>
 
     <TextView
-        android:id="@+id/image_message_text_view"
+        android:id="@+id/messageTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:maxWidth="200dp"

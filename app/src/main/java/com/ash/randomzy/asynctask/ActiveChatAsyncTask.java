@@ -5,7 +5,6 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.ash.randomzy.constants.MessageStatus;
-import com.ash.randomzy.constants.SentBy;
 import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.entity.LocalUser;
 import com.ash.randomzy.entity.Message;
@@ -143,20 +142,20 @@ public class ActiveChatAsyncTask extends AsyncTask<Void, Void, Void> {
                         localUser.setName(user.getName());
                         activeChat.setIsFav(0);
                         localUser.setIsFav(0);
-                        activeChat.setLastTextTime(message.getTimeStamp());
-                        activeChat.setLastText(message.getMessage());
+                        activeChat.setLastMessageTime(message.getTimeStamp());
+                        activeChat.setLastMessageText(message.getMessage());
                         activeChat.setProfilePicUrlServer(user.getProfilePicThumbUrl());
                         localUser.setProfilePicUrlServer(user.getProfilePicThumbUrl());
                         if(activeChatTaskType == ADD_NEW_INCOMING_ACTIVE_CHAT) {
                             activeChat.setSentBy(message.getSentBy());
-                            activeChat.setLastTextStatus(MessageStatus.DELIVERED);
+                            activeChat.setLastMessageStatus(MessageStatus.DELIVERED);
                             activeChat.setId(message.getSentBy());
                             localUser.setId(message.getSentBy());
                             UserUtil.addUser(message.getSentBy());
                         }
                         else {
                             activeChat.setSentBy(mAuth.getCurrentUser().getUid());
-                            activeChat.setLastTextStatus(MessageStatus.SENDING);
+                            activeChat.setLastMessageStatus(MessageStatus.SENDING);
                             activeChat.setId(message.getSentTo());
                             localUser.setId(message.getSentTo());
                             UserUtil.addUser(message.getSentTo());

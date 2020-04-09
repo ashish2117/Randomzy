@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/left_message_bg_25dp_radius"
+    android:padding="7dp"
+    android:elevation="5dp">
+
+        <RelativeLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+            <ImageView
+                android:id="@+id/voice_note_playback_image_view"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:src="@drawable/ic_play_arrow_gray_24dp" />
+
+            <ProgressBar
+                android:layout_width="25dp"
+                android:layout_height="25dp"
+                android:id="@+id/progressBar"
+                android:indeterminateTint="@color/myBlue"
+                android:layout_centerInParent="true"/>
+        </RelativeLayout>
+
+        <SeekBar
+            android:id="@+id/voice_note_seek_bar"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:padding="3dp"
+            android:progressTint="@color/myBlue"
+            android:thumbTint="@color/myBlue" />
+
+        <TextView
+            android:id="@+id/voice_note_length_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="3dp"
+            android:text="00:00"
+            android:textColor="@color/colorTextSecondary" />
+
+        <TextView
+            android:id="@+id/timeStampTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="3dp"
+            android:text="12:12 am"
+            android:textColor="@color/colorTextSecondary"
+            android:textSize="10sp" />
+
+</LinearLayout>

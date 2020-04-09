@@ -72,7 +72,7 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/image_message_text_view"
+        android:id="@+id/messageTextView"
         android:maxWidth="200dp"
         android:textColor="@color/colorTextPrimary"
         android:text="This is a message with the image"/>

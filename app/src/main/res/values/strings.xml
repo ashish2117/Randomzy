@@ -18,4 +18,7 @@
 
     <string name="transition_image_view">transitionImageView</string>
     <string name="transition_action_bar">transitionActionBar</string>
+
+    <string name="image_view_progress">progress</string>
+    <string name="image_uri">imageUri</string>
 </resources>

@@ -8,7 +8,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.ash.randomzy.R;
-import com.ash.randomzy.constants.SentBy;
+import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.listener.OnItemClickListener;
 import com.ash.randomzy.utility.MessageStatusUtil;
@@ -43,18 +43,20 @@ public class ActiveChatAdapter extends RecyclerView.Adapter<ActiveChatAdapter.Ac
     public void onBindViewHolder(@NonNull ActiveChatViewHolder holder, int position) {
         ActiveChat activeChat = activeChatList.get(position);
         holder.nameTxtView.setText(activeChat.getName());
-        holder.lastMessageTxtView.setText(activeChat.getLastText());
-        holder.lastMessageTimeTxtView.setText(TimestampUtil.getTimeLabel(activeChat.getLastTextTime()));
+        if (activeChat.getLastMessageType() == MessageTypes.TEXT)
+            holder.lastMessageTxtView.setText(activeChat.getLastMessageText());
+        else if(activeChat.getLastMessageType() == MessageTypes.IMAGE)
+            holder.lastMessageTxtView.setText("Sent an Image");
+        holder.lastMessageTimeTxtView.setText(TimestampUtil.getTimeLabel(activeChat.getLastMessageTime()));
         holder.unreadCountTxtView.setText("" + activeChat.getUnreadCount());
         if (activeChat.getIsTyping() == 0) {
             holder.typingTextview.setVisibility(View.INVISIBLE);
             holder.lastMessageTxtView.setVisibility(View.VISIBLE);
-        }
-        else {
+        } else {
             holder.typingTextview.setVisibility(View.VISIBLE);
             holder.lastMessageTxtView.setVisibility(View.INVISIBLE);
         }
-        MessageStatusUtil.setMessageStatusToImageView(holder.tickImageView, activeChat.getLastTextStatus());
+        MessageStatusUtil.setMessageStatusToImageView(holder.tickImageView, activeChat.getLastMessageStatus());
         holder.activeChat = activeChatList.get(position);
         if (activeChat.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
             holder.unreadCountTxtView.setVisibility(View.INVISIBLE);

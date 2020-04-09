@@ -22,16 +22,17 @@ import androidx.annotation.NonNull;
 public class RandomzyApp extends Application {
 
     private FirebaseAuth mAuth;
+
     @Override
     public void onCreate() {
         super.onCreate();
         mAuth = FirebaseAuth.getInstance();
-        if(!(mAuth.getCurrentUser() == null)) {
+        if (!(mAuth.getCurrentUser() == null)) {
             UserUtil.initUserIds(getApplicationContext());
-            new MessageAsyncTask(getApplicationContext(),MessageAsyncTask.SEND_UNSENT_MESSAGES).execute();
+            new MessageAsyncTask(getApplicationContext(), MessageAsyncTask.SEND_UNSENT_MESSAGES).execute();
             new ActiveChatAsyncTask(this, ActiveChatAsyncTask.POST_FAV_AND_ALL_ACTIVE_CHAT).execute();
         }
-        if(Build.VERSION.SDK_INT > 28) {
+        if (Build.VERSION.SDK_INT > 28) {
             ConnectivityManager.NetworkCallback nc = new ConnectivityManager.NetworkCallback() {
                 @Override
                 public void onAvailable(@NonNull Network network) {
@@ -40,10 +41,11 @@ public class RandomzyApp extends Application {
                 }
             };
         }
+        MyNotificationManager.createNotificationChannel(getApplicationContext());
     }
 
 
-    private void clearMessages(){
+    private void clearMessages() {
         MessageRepository repository = new MessageRepository(getApplicationContext());
         LocalUserRepository localUserRepository = new LocalUserRepository(getApplicationContext());
         new Thread(new Runnable() {

@@ -1,26 +1,29 @@
 package com.ash.randomzy.activity;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
-
 import android.app.ActivityOptions;
 import android.content.Intent;
+import android.media.MediaPlayer;
+import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.JsonReader;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -29,24 +32,28 @@ import com.ash.randomzy.asynctask.ActiveChatAsyncTask;
 import com.ash.randomzy.asynctask.LocalUserAsyncTask;
 import com.ash.randomzy.asynctask.MessageAsyncTask;
 import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
-import com.ash.randomzy.constants.MessageTypes;
+import com.ash.randomzy.constants.LocalStoragePaths;
+import com.ash.randomzy.constants.MediaProgress;
 import com.ash.randomzy.constants.MessageStatus;
+import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.constants.RealTimeDbNodes;
+import com.ash.randomzy.db.FirebaseStorageManager;
+import com.ash.randomzy.entity.Message;
+import com.ash.randomzy.event.GetMessagesForUserEvent;
+import com.ash.randomzy.event.ImageMessageDownloadedEvent;
 import com.ash.randomzy.event.ImageMessageProgressEvent;
+import com.ash.randomzy.event.MessageReceiveEvent;
+import com.ash.randomzy.event.MessageStatusUpdateEvent;
 import com.ash.randomzy.event.TypingEvent;
 import com.ash.randomzy.event.UnreadMessagesByUserEvent;
 import com.ash.randomzy.model.ActiveChat;
-import com.ash.randomzy.entity.Message;
-import com.ash.randomzy.event.GetMessagesForUserEvent;
-import com.ash.randomzy.event.MessageReceiveEvent;
-import com.ash.randomzy.event.MessageStatusUpdateEvent;
 import com.ash.randomzy.model.MessageStatusUpdate;
 import com.ash.randomzy.model.TypingStatus;
 import com.ash.randomzy.repository.MessageRepository;
 import com.ash.randomzy.utility.ActiveChatUtil;
 import com.ash.randomzy.utility.ChatBubbleUtil;
-import com.ash.randomzy.utility.ImageUploader;
 import com.ash.randomzy.utility.MessageStatusUtil;
+import com.ash.randomzy.utility.NetworkUtil;
 import com.ash.randomzy.utility.TimestampUtil;
 import com.ash.randomzy.utility.UserUtil;
 import com.dinuscxj.progressbar.CircleProgressBar;
@@ -55,7 +62,10 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ServerValue;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 import com.google.gson.Gson;
 
 import org.greenrobot.eventbus.EventBus;
@@ -64,14 +74,19 @@ import org.greenrobot.eventbus.ThreadMode;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-import static java.util.Objects.*;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBar;
+import de.hdodenhof.circleimageview.CircleImageView;
+
+import static java.util.Objects.requireNonNull;
 
 public class ChatActivity extends BaseActivity {
 
@@ -80,6 +95,9 @@ public class ChatActivity extends BaseActivity {
 
     private boolean initialMessageLoaded;
     private boolean isWindowFocused;
+    private boolean isSendCircleImageViewLongPressed;
+    private String voiceNoteOutputFile;
+    private Long voiceNoteRecStartedAt;
 
     private ScrollView scrollView;
     private ImageView sendButton;
@@ -87,9 +105,14 @@ public class ChatActivity extends BaseActivity {
     private LinearLayout typingStatus, messageListLayout;
     private View customView;
     private TextView userNameTextView, onlineStatusTextView;
+    private CircleImageView sendCircleImageView;
+
     private Menu menu;
+
     private View.OnClickListener onMessageClicked;
     private View.OnLongClickListener onLongClickListener;
+    private View.OnClickListener onDownloadImageClicked;
+    private View.OnClickListener onAudioPlaybackClicked;
 
 
     private Map<String, LinearLayout> messageLayoutMap;
@@ -104,6 +127,13 @@ public class ChatActivity extends BaseActivity {
     private static final String TYPING_TEXT = "Typing...";
     private static final int PICK_IMAGE_REQUEST = 0;
 
+    private String playingVoiceNoteForMessageId;
+    private Handler handlerToPlayVoiceNote;
+    private Runnable runnableToPlayVoiceNote;
+
+    private MediaRecorder myAudioRecorder;
+    private MediaPlayer mediaPlayer;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -115,6 +145,7 @@ public class ChatActivity extends BaseActivity {
         messages = new HashMap<>(50);
         selectedMessages = new HashMap<>(10);
         isWindowFocused = true;
+        isSendCircleImageViewLongPressed = false;
         initViews();
         addListeners();
         registerToEvents();
@@ -136,6 +167,11 @@ public class ChatActivity extends BaseActivity {
     protected void onStop() {
         super.onStop();
         UserUtil.setChatOpenedFor("");
+        if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+            mediaPlayer.stop();
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
     }
 
     @Override
@@ -189,8 +225,8 @@ public class ChatActivity extends BaseActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void deleteOrFav(){
-        if(selectedMessages.size() == 0)
+    private void deleteOrFav() {
+        if (selectedMessages.size() == 0)
             toggleIsFav();
         else
             deleteSelectedMessages();
@@ -214,26 +250,28 @@ public class ChatActivity extends BaseActivity {
             message.setSentBy(mAuth.getCurrentUser().getUid());
             message.setSentTo(activeChat.getId());
             message.setTimeStamp(System.currentTimeMillis());
-            message.setMessageType(MessageTypes.MESSAGE_TYPE_IMAGE);
+            message.setMessageType(MessageTypes.IMAGE);
             JSONObject jsonObject = null;
             LinearLayout imageChatBubble = null;
             try {
                 jsonObject = new JSONObject().put("imageUri", imageUri.toString());
                 message.setExtras(jsonObject.toString());
                 imageChatBubble = ChatBubbleUtil.getImageMessageChatBubble(message, this);
+                ImageView imageView = imageChatBubble.findViewById(R.id.image_message_image_view);
+                imageView.setOnClickListener(onMessageClicked);
+                imageView.setOnLongClickListener(onLongClickListener);
             } catch (JSONException e) {
                 e.printStackTrace();
             }
-            addChatBubbleToMessageListLayout(imageChatBubble, message.getMessageId());
+            addChatBubbleToMessageListLayout(imageChatBubble, message);
             messages.put(message.getMessageId(), message);
-            new MessageAsyncTask(this, MessageAsyncTask.INSERT_MESSAGE_TO_DB).execute(message);
-            ImageUploader.uploadImageMessage(imageUri, message);
+            new MessageAsyncTask(this, MessageAsyncTask.IMAGE_MESSAGE_SEND_TASK, imageUri).execute(message);
         }
     }
 
-    private void setIsFavOption(){
+    private void setIsFavOption() {
         MenuItem deleteOrFav = menu.findItem(R.id.deleteOrFav);
-        if(activeChat.getIsFav() == 0)
+        if (activeChat.getIsFav() == 0)
             deleteOrFav.setIcon(getResources().getDrawable(R.drawable.ic_star_border_white_24dp));
         else
             deleteOrFav.setIcon(getResources().getDrawable(R.drawable.ic_star_white_24dp));
@@ -264,7 +302,7 @@ public class ChatActivity extends BaseActivity {
                 @Override
                 protected void onPostExecute(Void aVoid) {
                     selectedMessages.clear();
-                    new ActiveChatAsyncTask(ChatActivity.this,ActiveChatAsyncTask.POST_FAV_AND_ALL_ACTIVE_CHAT).execute();
+                    new ActiveChatAsyncTask(ChatActivity.this, ActiveChatAsyncTask.POST_FAV_AND_ALL_ACTIVE_CHAT).execute();
                     super.onPostExecute(aVoid);
                 }
             }.execute(selectedMessages.keySet());
@@ -272,11 +310,10 @@ public class ChatActivity extends BaseActivity {
     }
 
     private void toggleIsFav() {
-        if(activeChat.getIsFav() == 0) {
+        if (activeChat.getIsFav() == 0) {
             activeChat.setIsFav(1);
             menu.findItem(R.id.deleteOrFav).setIcon(getResources().getDrawable(R.drawable.ic_star_white_24dp));
-        }
-        else {
+        } else {
             activeChat.setIsFav(0);
             menu.findItem(R.id.deleteOrFav).setIcon(getResources().getDrawable(R.drawable.ic_star_border_white_24dp));
         }
@@ -290,10 +327,13 @@ public class ChatActivity extends BaseActivity {
         messageArea = findViewById(R.id.messageArea);
         messageListLayout = findViewById(R.id.message_list_layout);
         typingStatus = findViewById(R.id.typingStatus);
+        sendCircleImageView = findViewById(R.id.send_circle_image_view);
+
         getSupportActionBar().setDisplayOptions(ActionBar.DISPLAY_SHOW_CUSTOM);
         getSupportActionBar().setDisplayShowCustomEnabled(true);
         getSupportActionBar().setCustomView(R.layout.actionbar_chat_activity);
         customView = getSupportActionBar().getCustomView();
+
         userNameTextView = customView.findViewById(R.id.usernameText);
         onlineStatusTextView = customView.findViewById(R.id.onlineStatusText);
         typingStatus.setVisibility(View.GONE);
@@ -312,6 +352,15 @@ public class ChatActivity extends BaseActivity {
 
         customView.findViewById(R.id.backButton).setOnClickListener((view -> {
             finish();
+        }));
+
+        sendCircleImageView.setOnLongClickListener((view -> {
+            recordVoiceNote();
+            return true;
+        }));
+
+        sendCircleImageView.setOnTouchListener(((view, motionEvent) -> {
+            return sendCircleImageViewTouched(view, motionEvent);
         }));
 
         messageArea.addTextChangedListener(new TextWatcher() {
@@ -337,17 +386,19 @@ public class ChatActivity extends BaseActivity {
         });
 
         onMessageClicked = (view) -> {
-            if (selectedMessages.size() == 0) {
-                if (!(view instanceof ImageView))
-                    return;
-                ImageView imageView = (ImageView) view;
-                Intent intent = new Intent(this, ImageViewerActivity.class);
-                intent.putExtra("imageUri", imageView.getTag().toString());
-                ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(this);
-                startActivity(intent, options.toBundle());
-            } else {
-                toggleMessageSelection(view);
-            }
+            Message message = (Message) view.getTag();
+            if (message == null)
+                if (selectedMessages.size() == 0) {
+                    if (!(view instanceof ImageView))
+                        return;
+                    ImageView imageView = (ImageView) view;
+                    Intent intent = new Intent(this, ImageViewerActivity.class);
+                    intent.putExtra("imageUri", imageView.getTag(R.string.image_uri).toString());
+                    ActivityOptions options = ActivityOptions.makeSceneTransitionAnimation(this);
+                    startActivity(intent, options.toBundle());
+                } else {
+                    toggleMessageSelection(view);
+                }
         };
 
         onLongClickListener = (view) -> {
@@ -357,6 +408,222 @@ public class ChatActivity extends BaseActivity {
             }
             return false;
         };
+
+        onDownloadImageClicked = view -> {
+            if (NetworkUtil.isConnectedToNetwork(this)) {
+                LinearLayout chatBubble = (LinearLayout) ((FrameLayout) view.getParent()).getParent();
+                Message message = (Message) chatBubble.getTag();
+                new FirebaseStorageManager().downloadImageMessageOriginalImage(message, ChatActivity.this);
+                view.setVisibility(View.GONE);
+                CircleProgressBar circleProgressBar = chatBubble.findViewById(R.id.progress_circ);
+                circleProgressBar.setVisibility(View.VISIBLE);
+            } else
+                Toast.makeText(this, "Not connected to Internet", Toast.LENGTH_LONG).show();
+        };
+
+        onAudioPlaybackClicked = view -> {
+            audioPlaybackClicked(view);
+        };
+    }
+
+    private void audioPlaybackClicked(View view) {
+        ImageView playBackImageView = (ImageView) view;
+        LinearLayout chatBubble = (LinearLayout) playBackImageView.getParent().getParent();
+        Message message = (Message) chatBubble.getTag();
+        try {
+            JSONObject extras = new JSONObject(message.getExtras());
+            if (!message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+
+                if (!extras.has("progress")) {
+                    downloadVoiceNoteAndPlay(message, chatBubble, extras, playBackImageView);
+                    return;
+                }
+            }
+            playVoiceNote(message, chatBubble, extras, playBackImageView);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private void downloadVoiceNoteAndPlay(Message message, LinearLayout chatBubble, JSONObject extras, ImageView playBackImageView) {
+        String filePath = null;
+        try {
+            filePath = extras.getString("voiceNoteUri");
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        if (filePath == null)
+            return;
+        String str[] = filePath.split("/");
+        String filename = str[str.length - 1];
+        File file = new File(LocalStoragePaths.getVoiceNotesPath(this)
+                + File.separator
+                + filename);
+        Log.d("testtt", file.getAbsolutePath());
+        StorageReference firebaseStorage = FirebaseStorage.getInstance().getReference();
+        chatBubble.findViewById(R.id.progressBar).setVisibility(View.VISIBLE);
+        playBackImageView.setVisibility(View.INVISIBLE);
+        firebaseStorage.child(filePath).getFile(file).addOnSuccessListener((taskSnapshot -> {
+            try {
+                extras.put("voiceNoteUri", Uri.fromFile(file).toString());
+                extras.put("progress", MediaProgress.MEDIA_DOWNLOADED_PROGRESS_VALUE);
+                message.setExtras(extras.toString());
+                chatBubble.findViewById(R.id.progressBar).setVisibility(View.INVISIBLE);
+                playBackImageView.setVisibility(View.VISIBLE);
+                playVoiceNote(message, chatBubble, extras, playBackImageView);
+                new MessageAsyncTask(this, MessageAsyncTask.INSERT_MESSAGE_TO_DB).execute(message);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }));
+    }
+
+    private void playVoiceNote(Message message, LinearLayout chatBubble, JSONObject extras, ImageView playBackImageView) {
+        if (playingVoiceNoteForMessageId != null && !playingVoiceNoteForMessageId.equals(message.getMessageId())) {
+            resetVoiceNoteChatBubble(messages.get(playingVoiceNoteForMessageId));
+            resetMediaPlayer();
+        }
+        SeekBar seekBar = chatBubble.findViewById(R.id.voice_note_seek_bar);
+        TextView textView = chatBubble.findViewById(R.id.voice_note_length_text_view);
+        try {
+            String voiceNoteUri = extras.getString("voiceNoteUri");
+            if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+                playBackImageView.setImageResource(R.drawable.ic_play_arrow_gray_24dp);
+                return;
+            } else if (mediaPlayer != null && mediaPlayer.getCurrentPosition() > 0) {
+                mediaPlayer.start();
+                playBackImageView.setImageResource(R.drawable.ic_pause_gray_24dp);
+                return;
+            }
+            mediaPlayer = new MediaPlayer();
+            handlerToPlayVoiceNote = new Handler();
+            runnableToPlayVoiceNote = new Runnable() {
+                @Override
+                public void run() {
+                    if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                        long mCurrentPosition = mediaPlayer.getCurrentPosition();
+                        int mCurrentPositionInSec = (int) mCurrentPosition / 500;
+                        seekBar.setProgress(mCurrentPositionInSec);
+                        textView.setText(TimestampUtil.getMinutesInString(mediaPlayer.getCurrentPosition()));
+                    }
+                    handlerToPlayVoiceNote.postDelayed(this, 500);
+                }
+            };
+            mediaPlayer.setDataSource(voiceNoteUri);
+            mediaPlayer.prepare();
+            seekBar.setMax((mediaPlayer.getDuration() / 1000) * 2);
+            seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                @Override
+                public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                }
+
+                @Override
+                public void onStartTrackingTouch(SeekBar seekBar) {
+                }
+
+                @Override
+                public void onStopTrackingTouch(SeekBar seekBar) {
+                    if (mediaPlayer != null && mediaPlayer.isPlaying())
+                        mediaPlayer.seekTo(seekBar.getProgress() * 500);
+                }
+            });
+            mediaPlayer.setOnCompletionListener((m) -> {
+                playBackImageView.setImageResource(R.drawable.ic_play_arrow_gray_24dp);
+                seekBar.setProgress(0);
+                resetMediaPlayer();
+            });
+            mediaPlayer.start();
+            playingVoiceNoteForMessageId = message.getMessageId();
+            playBackImageView.setImageResource(R.drawable.ic_pause_gray_24dp);
+            textView.setText(TimestampUtil.getMinutesInString(0));
+            ChatActivity.this.runOnUiThread(runnableToPlayVoiceNote);
+        } catch (JSONException | IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void resetMediaPlayer() {
+        if (mediaPlayer != null && mediaPlayer.isPlaying())
+            mediaPlayer.stop();
+        mediaPlayer.release();
+        mediaPlayer = null;
+        handlerToPlayVoiceNote.removeCallbacks(runnableToPlayVoiceNote);
+        runnableToPlayVoiceNote = null;
+        handlerToPlayVoiceNote = null;
+        playingVoiceNoteForMessageId = null;
+    }
+
+    private void resetVoiceNoteChatBubble(Message message) {
+        LinearLayout chatBubble = messageLayoutMap.get(message.getMessageId());
+        JSONObject extras = null;
+        try {
+            extras = new JSONObject(message.getExtras());
+            ((TextView) chatBubble.findViewById(R.id.voice_note_length_text_view))
+                    .setText(TimestampUtil.getMinutesInString(extras.getLong("lengthInMillis")));
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        ((SeekBar) chatBubble.findViewById(R.id.voice_note_seek_bar)).setProgress(0);
+        ((ImageView) chatBubble.findViewById(R.id.voice_note_playback_image_view)).setImageResource(R.drawable.ic_play_arrow_gray_24dp);
+    }
+
+    private void recordVoiceNote() {
+        if (!isSendCircleImageViewLongPressed) {
+            isSendCircleImageViewLongPressed = true;
+            voiceNoteOutputFile = LocalStoragePaths.getVoiceNotesPath(this)
+                    + File.separator
+                    + System.currentTimeMillis()
+                    + ".3gp";
+            myAudioRecorder = new MediaRecorder();
+            myAudioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            myAudioRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+            myAudioRecorder.setAudioEncoder(MediaRecorder.OutputFormat.AMR_NB);
+            myAudioRecorder.setOutputFile(voiceNoteOutputFile);
+            try {
+                myAudioRecorder.prepare();
+                myAudioRecorder.start();
+                voiceNoteRecStartedAt = System.currentTimeMillis();
+                Toast.makeText(this, "Recording Audio", Toast.LENGTH_LONG).show();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private boolean sendCircleImageViewTouched(View view, MotionEvent event) {
+        view.onTouchEvent(event);
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            if (isSendCircleImageViewLongPressed) {
+                myAudioRecorder.stop();
+                Long fileLengthInMillis = System.currentTimeMillis() - voiceNoteRecStartedAt;
+                myAudioRecorder.release();
+                myAudioRecorder = null;
+                Uri voiceNoteUri = Uri.fromFile(new File(voiceNoteOutputFile));
+                Message message = new Message();
+                message.setMessage("");
+                JSONObject jsonObject = new JSONObject();
+                try {
+                    jsonObject.put("voiceNoteUri", voiceNoteOutputFile);
+                    jsonObject.put("lengthInMillis", fileLengthInMillis);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                message.setExtras(jsonObject.toString());
+                message.setMessageType(MessageTypes.VOICE_NOTE);
+                message.setTimeStamp(System.currentTimeMillis());
+                message.setSentBy(mAuth.getCurrentUser().getUid());
+                message.setSentTo(activeChat.getId());
+                message.setMessageStatus(MessageStatus.SENDING);
+                message.setMessageId(UUID.randomUUID().toString());
+                new MessageAsyncTask(this, MessageAsyncTask.INSERT_MESSAGE_TO_DB).execute(message);
+                addMessageToList(message);
+                FirebaseStorageManager.sendVoiceNote(message, voiceNoteUri, this, fileLengthInMillis);
+                isSendCircleImageViewLongPressed = false;
+            }
+        }
+        return false;
     }
 
     private boolean toggleMessageSelection(View view) {
@@ -367,7 +634,7 @@ public class ChatActivity extends BaseActivity {
             ImageView imageView = (ImageView) view;
             linearLayout = (LinearLayout) ((FrameLayout) imageView.getParent()).getParent();
         }
-        String messageId = linearLayout.getTag().toString();
+        String messageId = ((Message) linearLayout.getTag()).getMessageId();
         if (selectedMessages.containsKey(messageId))
             unSelectMessage(linearLayout, true);
         else
@@ -378,21 +645,24 @@ public class ChatActivity extends BaseActivity {
     private void selectMessage(LinearLayout chatBubble) {
         if (selectedMessages.size() == 0)
             menu.findItem(R.id.deleteOrFav).setIcon(getResources().getDrawable(R.drawable.ic_delete_white_24dp));
-        String messageId = chatBubble.getTag().toString();
-        selectedMessages.put(messageId, messages.get(messageId));
+        Message message = (Message) chatBubble.getTag();
+        selectedMessages.put(message.getMessageId(), message);
         chatBubble.setBackground(getResources().getDrawable(R.drawable.rounded_corners_blue_25dp_raduis));
-        ((TextView) chatBubble.findViewById(R.id.messageTextView)).setTextColor(getResources().getColor(R.color.white));
+        if (!(message.getMessageType() == MessageTypes.VOICE_NOTE))
+            ((TextView) chatBubble.findViewById(R.id.messageTextView)).setTextColor(getResources().getColor(R.color.white));
     }
 
     private void unSelectMessage(LinearLayout chatBubble, boolean removeFromSelectedMessagesMap) {
-        String messageId = chatBubble.getTag().toString();
+        Message message = (Message) chatBubble.getTag();
+        String messageId = message.getMessageId();
         if (removeFromSelectedMessagesMap)
             selectedMessages.remove(messageId);
         if (chatBubble.findViewById(R.id.messageStatusImageView) != null)
             chatBubble.setBackground(getResources().getDrawable(R.drawable.right_message_bg_25dp_radius));
         else
             chatBubble.setBackground(getResources().getDrawable(R.drawable.left_message_bg_25dp_radius));
-        ((TextView) chatBubble.findViewById(R.id.messageTextView)).setTextColor(getResources().getColor(R.color.colorTextPrimary));
+        if (!(message.getMessageType() == MessageTypes.VOICE_NOTE))
+            ((TextView) chatBubble.findViewById(R.id.messageTextView)).setTextColor(getResources().getColor(R.color.colorTextPrimary));
         if (selectedMessages.size() == 0)
             setIsFavOption();
     }
@@ -441,13 +711,14 @@ public class ChatActivity extends BaseActivity {
         Message message = getMessage();
         if (message == null)
             return;
-        new MessageAsyncTask(this, MessageAsyncTask.MESSAGE_SEND_TASK).execute(message);
+        new MessageAsyncTask(this, MessageAsyncTask.TEXT_MESSAGE_SEND_TASK).execute(message);
         addMessageToList(message);
         resetBottomArea();
     }
 
     private void addMessageToList(Message message) {
-        if (isWindowFocused && message.getMessageStatus() != MessageStatus.READ && !message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+        if (isWindowFocused && message.getMessageStatus() != MessageStatus.READ
+                && !message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
             MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
             messageStatusUpdate.setUserId(message.getSentBy());
             messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
@@ -459,28 +730,32 @@ public class ChatActivity extends BaseActivity {
             new OutgoingMessageStatusUpdateTask(this).execute(messageStatusUpdate);
         }
         LinearLayout chatBubble = null;
-        if (message.getMessageType() == MessageTypes.MESSAGE_TYPE_TEXT) {
+        if (message.getMessageType() == MessageTypes.TEXT) {
             chatBubble = ChatBubbleUtil.getTextMessageChatBubble(message, this);
             chatBubble.setOnLongClickListener(onLongClickListener);
             chatBubble.setOnClickListener(onMessageClicked);
-        } else if (message.getMessageType() == MessageTypes.MESSAGE_TYPE_IMAGE) {
-            try {
-                chatBubble = ChatBubbleUtil.getImageMessageChatBubble(message, this);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
+        } else if (message.getMessageType() == MessageTypes.IMAGE) {
+            chatBubble = ChatBubbleUtil.getImageMessageChatBubble(message, this);
             ImageView imageView = chatBubble.findViewById(R.id.image_message_image_view);
             imageView.setOnClickListener(onMessageClicked);
             imageView.setOnLongClickListener(onLongClickListener);
+            ImageView downloadImageView = chatBubble.findViewById(R.id.downLoadImage);
+            if (downloadImageView != null)
+                downloadImageView.setOnClickListener(onDownloadImageClicked);
+        } else if (message.getMessageType() == MessageTypes.VOICE_NOTE) {
+            chatBubble = ChatBubbleUtil.getVoiceNoteChatBubble(message, this);
+            chatBubble.setOnLongClickListener(onLongClickListener);
+            chatBubble.setOnClickListener(onMessageClicked);
+            chatBubble.findViewById(R.id.voice_note_playback_image_view).setOnClickListener(onAudioPlaybackClicked);
         }
-        addChatBubbleToMessageListLayout(chatBubble, message.getMessageId());
+        addChatBubbleToMessageListLayout(chatBubble, message);
         messages.put(message.getMessageId(), message);
     }
 
-    private void addChatBubbleToMessageListLayout(LinearLayout chatBubble, String messageId) {
-        chatBubble.setTag(messageId);
+    private void addChatBubbleToMessageListLayout(LinearLayout chatBubble, Message message) {
+        chatBubble.setTag(message);
         messageListLayout.addView(chatBubble);
-        messageLayoutMap.put(messageId, chatBubble);
+        messageLayoutMap.put(message.getMessageId(), chatBubble);
     }
 
     //====================================Subscribe To Events Start===========================
@@ -503,15 +778,21 @@ public class ChatActivity extends BaseActivity {
         if (event.getMessageStatusUpdate().getUserId().equals(activeChat.getId())
                 && (!event.getOriginator().equals(mAuth.getCurrentUser().getUid())
                 || messageStatusUpdate.getMessageStatus() == MessageStatus.SENT)) {
-            LinearLayout l = messageLayoutMap.get(messageStatusUpdate.getMessageId());
-            if (l != null) {
-                ImageView imageView = l.findViewById(R.id.messageStatusImageView);
-                if (messageStatusUpdate.getForMessageType() == MessageTypes.MESSAGE_TYPE_TEXT)
+            LinearLayout chatBubble = messageLayoutMap.get(messageStatusUpdate.getMessageId());
+            if (chatBubble != null) {
+                ImageView imageView = chatBubble.findViewById(R.id.messageStatusImageView);
+                if (messageStatusUpdate.getForMessageType() == MessageTypes.TEXT)
                     MessageStatusUtil.setMessageStatusToImageView(imageView, messageStatusUpdate.getMessageStatus());
-                else if (messageStatusUpdate.getForMessageType() == MessageTypes.MESSAGE_TYPE_IMAGE) {
+                else if (messageStatusUpdate.getForMessageType() == MessageTypes.IMAGE) {
                     MessageStatusUtil.setMessageStatusToImageViewForImageMessage(imageView, messageStatusUpdate.getMessageStatus());
-                    CircleProgressBar progressBar = l.findViewById(R.id.progress_circ);
+                    CircleProgressBar progressBar = chatBubble.findViewById(R.id.progress_circ);
                     progressBar.setVisibility(View.INVISIBLE);
+                } else if (messageStatusUpdate.getForMessageType() == MessageTypes.VOICE_NOTE) {
+                    MessageStatusUtil.setMessageStatusToImageView(imageView, messageStatusUpdate.getMessageStatus());
+                    if (messageStatusUpdate.getMessageStatus() == MessageStatus.SENT) {
+                        chatBubble.findViewById(R.id.progressBar).setVisibility(View.INVISIBLE);
+                        chatBubble.findViewById(R.id.voice_note_playback_image_view).setVisibility(View.VISIBLE);
+                    }
                 }
             }
         }
@@ -571,17 +852,35 @@ public class ChatActivity extends BaseActivity {
             progressBar.setProgress(event.getProgress());
         }
     }
+
+    @Subscribe
+    public void onImageMessageDownloaded(ImageMessageDownloadedEvent event) {
+        Message message = event.getMessage();
+        Uri uri = null;
+        try {
+            JSONObject extras = new JSONObject(message.getExtras());
+            uri = Uri.parse(extras.getString("fullImageUri"));
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        if (uri != null) {
+            LinearLayout chatBubble = messageLayoutMap.get(message.getMessageId());
+            ImageView imageView = chatBubble.findViewById(R.id.image_message_image_view);
+            imageView.setImageURI(uri);
+            imageView.setTag(R.string.image_uri, uri.toString());
+            chatBubble.findViewById(R.id.progress_circ).setVisibility(View.GONE);
+            chatBubble.setTag(message);
+        }
+    }
+
     //====================================Subscribe To Events Complete===========================
 
-    public void showImage(View view) {
-        Toast.makeText(this, "hello", Toast.LENGTH_SHORT);
-    }
 
     private Message getMessage() {
         if (messageArea.getText().toString().isEmpty())
             return null;
         Message message = new Message();
-        message.setMessageType(MessageTypes.MESSAGE_TYPE_TEXT);
+        message.setMessageType(MessageTypes.TEXT);
         message.setTimeStamp(System.currentTimeMillis());
         message.setMessage(messageArea.getText().toString());
         message.setSentTo(activeChat.getId());

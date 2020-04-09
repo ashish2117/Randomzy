@@ -6,14 +6,15 @@ public class ActiveChat {
 
     private String id;
     private String name;
-    private String lastText;
-    private Long lastTextTime;
-    private int lastTextStatus;
+    private String lastMessageText;
+    private Long lastMessageTime;
+    private int lastMessageStatus;
     private String sentBy;
     private String profilePicUrlLocal;
     private String profilePicUrlServer;
     private int unreadCount;
     private int isTyping;
+    private int lastMessageType;
 
     private int isFav;
 
@@ -41,28 +42,28 @@ public class ActiveChat {
         this.name = name;
     }
 
-    public String getLastText() {
-        return lastText;
+    public String getLastMessageText() {
+        return lastMessageText;
     }
 
-    public void setLastText(String lastText) {
-        this.lastText = lastText;
+    public void setLastMessageText(String lastMessageText) {
+        this.lastMessageText = lastMessageText;
     }
 
-    public Long getLastTextTime() {
-        return lastTextTime;
+    public Long getLastMessageTime() {
+        return lastMessageTime;
     }
 
-    public void setLastTextTime(Long lastTextTime) {
-        this.lastTextTime = lastTextTime;
+    public void setLastMessageTime(Long lastMessageTime) {
+        this.lastMessageTime = lastMessageTime;
     }
 
-    public int getLastTextStatus() {
-        return lastTextStatus;
+    public int getLastMessageStatus() {
+        return lastMessageStatus;
     }
 
-    public void setLastTextStatus(int lastTextStatus) {
-        this.lastTextStatus = lastTextStatus;
+    public void setLastMessageStatus(int lastMessageStatus) {
+        this.lastMessageStatus = lastMessageStatus;
     }
 
     public String getSentBy() {
@@ -103,6 +104,14 @@ public class ActiveChat {
 
     public void setIsTyping(int isTyping) {
         this.isTyping = isTyping;
+    }
+
+    public int getLastMessageType() {
+        return lastMessageType;
+    }
+
+    public void setLastMessageType(int lastMessageType) {
+        this.lastMessageType = lastMessageType;
     }
 
     @Override

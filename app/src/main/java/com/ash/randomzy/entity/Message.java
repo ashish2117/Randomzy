@@ -101,6 +101,19 @@ public class Message implements Serializable {
         this.extras = extras;
     }
 
+    public Message clone(){
+        Message message = new Message();
+        message.setMessage(this.message);
+        message.setExtras(this.extras);
+        message.setMessageId(this.messageId);
+        message.setMessageStatus(this.messageStatus);
+        message.setSentTo(this.sentTo);
+        message.setSentBy(this.sentBy);
+        message.setTimeStamp(this.timeStamp);
+        message.setMessageType(this.messageType);
+        return message;
+    }
+
     @Override
     public String toString(){
         return new Gson().toJson(this);

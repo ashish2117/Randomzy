@@ -21,7 +21,6 @@ import com.ash.randomzy.R;
 import com.ash.randomzy.activity.ChatActivity;
 import com.ash.randomzy.adapter.ActiveChatAdapter;
 import com.ash.randomzy.constants.MessageStatus;
-import com.ash.randomzy.constants.SentBy;
 import com.ash.randomzy.event.TypingEvent;
 import com.ash.randomzy.model.ActiveChat;
 import com.ash.randomzy.entity.Message;
@@ -137,7 +136,7 @@ public class PlaceholderFragment extends Fragment {
         ActiveChatPosition activeChatPosition = getActiveChatPosition(messageStatusUpdateEvent.getActiveChatId());
         if (activeChatPosition != null) {
             ActiveChat activeChat = activeChatPosition.activeChat;
-            activeChat.setLastTextStatus(messageStatusUpdate.getMessageStatus());
+            activeChat.setLastMessageStatus(messageStatusUpdate.getMessageStatus());
             if (messageStatusUpdate.getMessageStatus() == MessageStatus.READ)
                 activeChat.setUnreadCount(0);
             adapter.notifyItemChanged(activeChatPosition.position);
@@ -150,10 +149,11 @@ public class PlaceholderFragment extends Fragment {
         ActiveChatPosition activeChatPosition = getActiveChatPosition(message.getSentBy());
         if (activeChatPosition != null) {
             ActiveChat activeChat = activeChatPosition.activeChat;
-            activeChat.setLastText(message.getMessage());
-            activeChat.setLastTextTime(message.getTimeStamp());
+            activeChat.setLastMessageText(message.getMessage());
+            activeChat.setLastMessageTime(message.getTimeStamp());
             activeChat.setSentBy(message.getSentBy());
             activeChat.setUnreadCount(activeChat.getUnreadCount() + 1);
+            activeChat.setLastMessageType(message.getMessageType());
             adapter.notifyItemChanged(activeChatPosition.position);
         }
     }
@@ -163,10 +163,11 @@ public class PlaceholderFragment extends Fragment {
         Message message = messageOutGoingEvent.getMessage();
         ActiveChatPosition activeChatPosition = getActiveChatPosition(message.getSentTo());
         if (activeChatPosition != null) {
-            activeChatPosition.activeChat.setLastText(message.getMessage());
-            activeChatPosition.activeChat.setLastTextTime(message.getTimeStamp());
+            activeChatPosition.activeChat.setLastMessageText(message.getMessage());
+            activeChatPosition.activeChat.setLastMessageTime(message.getTimeStamp());
             activeChatPosition.activeChat.setSentBy(message.getSentBy());
-            activeChatPosition.activeChat.setLastTextStatus(message.getMessageStatus());
+            activeChatPosition.activeChat.setLastMessageStatus(message.getMessageStatus());
+            activeChatPosition.activeChat.setLastMessageType(message.getMessageType());
             adapter.notifyItemChanged(activeChatPosition.position);
         }
     }

@@ -72,7 +72,7 @@
             android:padding="11dp"
             android:layout_marginLeft="5dp"
             android:layout_marginTop="5dp"
-            android:id="@+id/emojiButton"
+            android:id="@+id/send_circle_image_view"
             android:elevation="5dp"/>
 
 

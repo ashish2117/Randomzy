@@ -8,7 +8,7 @@ public class TypingStatus {
     private int messageType;
 
     public TypingStatus() {
-        this.messageType = MessageTypes.MESSAGE_TYPE_TYPING;
+        this.messageType = MessageTypes.TYPING;
     }
 
     public String getUserId() {

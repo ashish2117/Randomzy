@@ -5,12 +5,14 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.ash.randomzy.MyNotificationManager;
 import com.ash.randomzy.asynctask.IncomingMessageStatusUpdateTask;
 import com.ash.randomzy.asynctask.MessageAsyncTask;
 import com.ash.randomzy.asynctask.OutgoingMessageStatusUpdateTask;
 import com.ash.randomzy.constants.MessageStatus;
 import com.ash.randomzy.constants.MessageTypes;
 import com.ash.randomzy.constants.RealTimeDbNodes;
+import com.ash.randomzy.db.FirebaseStorageManager;
 import com.ash.randomzy.entity.Message;
 import com.ash.randomzy.event.MessageReceiveEvent;
 import com.ash.randomzy.event.MessageStatusUpdateEvent;
@@ -34,7 +36,7 @@ import androidx.annotation.Nullable;
 public class RealTimeDbListenerService extends Service {
 
     private FirebaseAuth mAuth;
-    private DatabaseReference messageReference;
+    private DatabaseReference messageRef;
     private DatabaseReference fireAndForgetRef;
     private DatabaseReference onlineStatusRef;
 
@@ -54,7 +56,7 @@ public class RealTimeDbListenerService extends Service {
     }
 
     private void initDatabaseReferences() {
-        messageReference = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE)
+        messageRef = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.MESSAGES_NODE)
                 .child(mAuth.getCurrentUser().getUid());
         fireAndForgetRef = FirebaseDatabase.getInstance().getReference(RealTimeDbNodes.FIRE_AND_FORGET_NODE)
                 .child(mAuth.getCurrentUser().getUid());
@@ -77,52 +79,58 @@ public class RealTimeDbListenerService extends Service {
 
     private void newMessageArrvied(DataSnapshot dataSnapshot, String s) {
         Log.d("randomzy_debug", "New Message Arrived");
-        int meesageType = ((Long) dataSnapshot.child("messageType").getValue()).intValue();
-        switch (meesageType) {
-            case MessageTypes.MESSAGE_TYPE_TEXT:
-                newTextMessageArrived(dataSnapshot, s);
+        int messageType = ((Long) dataSnapshot.child("messageType").getValue()).intValue();
+        switch (messageType) {
+            case MessageTypes.TEXT:
+            case MessageTypes.VOICE_NOTE:
+                newMessageArrived(dataSnapshot, s);
                 break;
             case MessageTypes.MESSAGE_STATUS_UPDATE:
                 newMessageStatusUpdateArrived(dataSnapshot, s);
                 break;
+            case MessageTypes.IMAGE:
+                imageMessageArrived(dataSnapshot, s);
+                break;
         }
     }
+
 
     private void fireAndForgetMessageArrived(DataSnapshot dataSnapshot, String s) {
         Log.d("randomzy_debug", "New Fire and Forget Message Arrived");
         int meesageType = ((Long) dataSnapshot.child("messageType").getValue()).intValue();
-        switch (meesageType){
-            case MessageTypes.MESSAGE_TYPE_TYPING:
+        switch (meesageType) {
+            case MessageTypes.TYPING:
                 typingStatusArrived(dataSnapshot, s);
         }
     }
 
-    public void newTextMessageArrived(DataSnapshot dataSnapshot, String s) {
+    public void newMessageArrived(DataSnapshot dataSnapshot, String s) {
+        Log.d("randomzy_debug", "New Text Message Arrived");
         Message message = dataSnapshot.getValue(Message.class);
-        String sentBy = message.getSentBy();
-        if (!sentBy.equals(mAuth.getCurrentUser().getUid())) {
+        if (!message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
             EventBus.getDefault().post(new MessageReceiveEvent(message));
             new MessageAsyncTask(getApplicationContext(), MessageAsyncTask.INSERT_DB_DELETE_REMOTE_TASK).execute(message);
-            Log.d("randomzy_debug", "===" + UserUtil.getChatOpenedFor() + "===");
-            if (!UserUtil.getChatOpenedFor().equals(sentBy)) {
-                Log.d("randomzy_debug", "No Chat Opened");
-                MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
-                messageStatusUpdate.setUserId(sentBy);
-                messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
-                messageStatusUpdate.setMessageId(message.getMessageId());
-                messageStatusUpdate.setMessageStatus(MessageStatus.DELIVERED);
-                messageStatusUpdate.setForMessageType(message.getMessageType());
-                new OutgoingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
-            }
+            sendMessageDeliveredUpdate(message);
         }
     }
 
 
     private void newMessageStatusUpdateArrived(DataSnapshot dataSnapshot, String s) {
+        Log.d("randomzy_debug", "New Message Status Update Arrived");
         MessageStatusUpdate messageStatusUpdate = dataSnapshot.getValue(MessageStatusUpdate.class);
         EventBus.getDefault().post(new MessageStatusUpdateEvent(messageStatusUpdate,
                 messageStatusUpdate.getUserId(), messageStatusUpdate.getUserId()));
         new IncomingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
+    }
+
+    private void imageMessageArrived(DataSnapshot dataSnapshot, String s) {
+        Log.d("randomzy_debug", "New Image Message Arrived");
+        Message message = dataSnapshot.getValue(Message.class);
+        if(!message.getSentBy().equals(mAuth.getCurrentUser().getUid())) {
+            sendMessageDeliveredUpdate(message);
+            new MessageAsyncTask(getApplicationContext(), MessageAsyncTask.INSERT_DB_DELETE_REMOTE_TASK).execute(message);
+            new FirebaseStorageManager().downloadImageMessageThumbAndPostMessage(message, getApplicationContext());
+        }
     }
 
     private void typingStatusArrived(DataSnapshot dataSnapshot, String s) {
@@ -131,30 +139,45 @@ public class RealTimeDbListenerService extends Service {
         fireAndForgetRef.child(dataSnapshot.getKey()).removeValue();
     }
 
+    private void sendMessageDeliveredUpdate(Message message){
+        if (!UserUtil.getChatOpenedFor().equals(message.getSentBy())) {
+            MyNotificationManager.showTextMessageNotification(getApplicationContext(), message);
+            MessageStatusUpdate messageStatusUpdate = new MessageStatusUpdate();
+            messageStatusUpdate.setUserId(message.getSentBy());
+            messageStatusUpdate.setTimeStamp(System.currentTimeMillis());
+            messageStatusUpdate.setMessageId(message.getMessageId());
+            messageStatusUpdate.setMessageStatus(MessageStatus.DELIVERED);
+            messageStatusUpdate.setForMessageType(message.getMessageType());
+            new OutgoingMessageStatusUpdateTask(getApplicationContext()).execute(messageStatusUpdate);
+        }
+    }
 
     private void addDatabaseReferenceListeners() {
 
         onlineStatusRef.onDisconnect().setValue(ServerValue.TIMESTAMP);
 
-        messageReference.addChildEventListener(new ChildEventListener() {
+        messageRef.addChildEventListener(new ChildEventListener() {
             @Override
             public void onChildAdded(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
                 newMessageArrvied(dataSnapshot, s);
             }
 
             @Override
-            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
+            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
+            }
 
             @Override
-            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) { }
+            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) {
+            }
 
             @Override
-            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
+            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
+            }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) { }
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+            }
         });
-
 
 
         ChildEventListener fireAndForgetListener = new ChildEventListener() {
@@ -164,21 +187,25 @@ public class RealTimeDbListenerService extends Service {
             }
 
             @Override
-            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
+            public void onChildChanged(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
+            }
 
             @Override
-            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) { }
+            public void onChildRemoved(@NonNull DataSnapshot dataSnapshot) {
+            }
 
             @Override
-            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) { }
+            public void onChildMoved(@NonNull DataSnapshot dataSnapshot, @Nullable String s) {
+            }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError databaseError) { }
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+            }
         };
 
         fireAndForgetRef.removeValue().addOnCompleteListener((task -> {
-            if(task.isSuccessful()){
-               fireAndForgetRef.addChildEventListener(fireAndForgetListener);
+            if (task.isSuccessful()) {
+                fireAndForgetRef.addChildEventListener(fireAndForgetListener);
             }
         }));
     }

@@ -52,7 +52,7 @@ public class TimestampUtil {
         String today = getDateWithYear(new Date());
         String strInp[] = inp.split("/");
         String strToday[] = today.split("/");
-        return (Integer.valueOf(strInp[0]) == Integer.valueOf(strToday[0]) -1)
+        return (Integer.valueOf(strInp[0]) == Integer.valueOf(strToday[0]) - 1)
                 && (Integer.valueOf(strInp[1]) == Integer.valueOf(strToday[1]))
                 && (Integer.valueOf(strInp[2]) == Integer.valueOf(strToday[2]));
     }
@@ -61,6 +61,17 @@ public class TimestampUtil {
         Date now = new Date();
         SimpleDateFormat fmt = new SimpleDateFormat("yyyyMMdd");
         return fmt.format(now).equals(fmt.format(date));
+    }
+
+    public static String getMinutesInString(long millis) {
+        int seconds = (int) millis / 1000;
+        String minutes = String.valueOf(seconds / 60);
+        String secondsLeft = String.valueOf(seconds % 60);
+        if (minutes.length() == 1)
+            minutes = "0" + minutes;
+        if (secondsLeft.length() == 1)
+            secondsLeft = "0" + secondsLeft;
+        return minutes + ":" + secondsLeft;
     }
 
 }
